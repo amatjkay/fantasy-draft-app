@@ -85,41 +85,19 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
       background: 'linear-gradient(135deg, #053950 0%, #072338 100%)',
       padding: '20px',
     }}>
-      <div style={{
+      <div className="card" style={{
         maxWidth: '800px',
         margin: '0 auto',
-        background: '#1A1D23',
         padding: '32px',
-        borderRadius: '12px',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <h1 style={{ margin: 0, color: '#fff' }}>Лобби драфта</h1>
-          <button
-            onClick={onExit}
-            style={{
-              padding: '10px 20px',
-              background: '#334155',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              color: '#ffffff',
-              fontWeight: '600',
-              fontSize: '14px',
-            }}
-          >
+          <button onClick={onExit} className="btn btn-secondary">
             ← Выход
           </button>
         </div>
 
-        <div style={{
-          background: '#0a3d52',
-          padding: '16px',
-          borderRadius: '8px',
-          marginBottom: '24px',
-          fontSize: '14px',
-          border: '2px solid #334155',
-        }}>
+        <div className="card" style={{ padding: '16px', marginBottom: '24px', fontSize: '14px' }}>
           <div style={{ marginBottom: '8px', color: '#ffffff' }}>
             <strong>🎮 Код комнаты:</strong> <span style={{ color: '#60a5fa' }}>{roomId}</span>
           </div>
@@ -182,76 +160,25 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'flex', gap: '12px' }}>
             {!isAdmin && (
-              <button
-                onClick={toggleReady}
-                style={{
-                  flex: 1,
-                  padding: '14px',
-                  background: myReady ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #334155, #1e293b)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                }}
-              >
+              <button onClick={toggleReady} className="btn btn-primary" style={{ flex: 1 }}>
                 {myReady ? '✓ Готов' : 'Отметить готовность'}
               </button>
             )}
 
             {isAdmin && (
-              <button
-                onClick={startDraft}
-                disabled={!canStart}
-                style={{
-                  flex: 1,
-                  padding: '14px',
-                  background: canStart ? 'linear-gradient(135deg, #10b981, #059669)' : '#475569',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: '700',
-                  cursor: canStart ? 'pointer' : 'not-allowed',
-                  boxShadow: canStart ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
-                  opacity: canStart ? 1 : 0.6,
-                }}
-              >
+              <button onClick={startDraft} disabled={!canStart} className="btn btn-primary" style={{ flex: 1 }}>
                 {canStart ? '🏒 Начать драфт' : `Нужно минимум 2 участника (${participants.length}/2)`}
               </button>
             )}
           </div>
 
           {isAdmin && (
-            <button
-              onClick={() => addBots(3)}
-              style={{
-                padding: '12px',
-                background: '#0a3d52',
-                color: '#ffffff',
-                border: '2px solid #334155',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >
-              🤖 Добавить 3 ботов (для тестирования)
-            </button>
+            <button onClick={() => addBots(3)} className="btn btn-secondary">🤖 Добавить 3 ботов (для тестирования)</button>
           )}
         </div>
 
         {isAdmin && (
-          <div style={{
-            marginTop: '16px',
-            padding: '12px',
-            background: '#fff3cd',
-            borderRadius: '4px',
-            fontSize: '13px',
-            color: '#856404',
-          }}>
+          <div className="alert alert-info" style={{ marginTop: '16px' }}>
             🔑 Вы администратор. Можете запустить драфт когда все будут готовы.
           </div>
         )}
