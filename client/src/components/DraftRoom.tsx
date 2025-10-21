@@ -377,6 +377,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
               placeholder="Поиск по имени..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
+              className="input"
               style={{ 
                 flex: 1, 
                 minWidth: '200px', 
@@ -392,6 +393,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
             <select 
               value={positionFilter} 
               onChange={e => setPositionFilter(e.target.value)} 
+              className="select"
               style={{ 
                 padding: '10px', 
                 border: '2px solid #334155', 
@@ -412,6 +414,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
             <select 
               value={sortBy} 
               onChange={e => setSortBy(e.target.value as any)} 
+              className="select"
               style={{ 
                 padding: '10px', 
                 border: '2px solid #334155', 
@@ -430,7 +433,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
 
           {/* Table */}
           <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ position: 'sticky', top: 0, background: '#0a3d52' }}>
                 <tr>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #334155', color: '#ffffff', fontWeight: '700' }}>Игрок</th>
@@ -538,10 +541,10 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
           })()}
 
           {/* Draft History - All Picks */}
-          <h3 style={{ fontSize: '16px', marginTop: '20px', marginBottom: '12px', color: '#000', fontWeight: '700' }}>
+          <h3 style={{ fontSize: '16px', marginTop: '20px', marginBottom: '12px', color: '#ffffff', fontWeight: '700' }}>
             История пиков ({draftState?.picks?.length || 0})
           </h3>
-          <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: '6px', background: '#fafafa' }}>
+          <div style={{ maxHeight: '220px', overflowY: 'auto', border: '2px solid #334155', borderRadius: '6px', background: '#1e293b' }}>
             {draftState?.picks && draftState.picks.length > 0 ? (
               // Show all picks in reverse order (most recent first)
               [...draftState.picks].reverse().map((pick, i) => {
@@ -553,24 +556,24 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
                 return (
                   <div key={i} style={{ 
                     padding: '10px 12px', 
-                    borderBottom: i < draftState.picks.length - 1 ? '1px solid #e0e0e0' : 'none', 
+                    borderBottom: i < draftState.picks.length - 1 ? '1px solid #334155' : 'none', 
                     fontSize: '13px',
-                    background: isMyPick ? '#e3f2fd' : (i % 2 === 0 ? '#fff' : '#f9f9f9'),
-                    borderLeft: isMyPick ? '3px solid #1976d2' : 'none'
+                    background: isMyPick ? 'linear-gradient(135deg, #064e3b, #065f46)' : (i % 2 === 0 ? '#0a3d52' : '#1e293b'),
+                    borderLeft: isMyPick ? '3px solid #10b981' : 'none'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '12px', color: '#757575', fontWeight: '600' }}>
+                      <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600' }}>
                         Пик #{pickNumber}
                       </span>
-                      <span style={{ fontSize: '11px', color: isMyPick ? '#1976d2' : (isBot ? '#ff9800' : '#757575'), fontWeight: '700' }}>
+                      <span style={{ fontSize: '11px', color: isMyPick ? '#60a5fa' : (isBot ? '#f59e0b' : '#94a3b8'), fontWeight: '700' }}>
                         {isMyPick ? 'ВЫ' : (isBot ? '🤖 БОТ' : 'ИГРОК')}
                       </span>
                     </div>
-                    <div style={{ fontWeight: '700', color: '#000', fontSize: '14px' }}>
+                    <div style={{ fontWeight: '700', color: '#ffffff', fontSize: '14px' }}>
                       {player ? `${player.firstName} ${player.lastName}` : 'Loading...'}
                     </div>
                     {player && (
-                      <div style={{ color: '#1565c0', fontSize: '12px', fontWeight: '600', marginTop: '2px' }}>
+                      <div style={{ color: '#60a5fa', fontSize: '12px', fontWeight: '600', marginTop: '2px' }}>
                         {player.position} • ${(player.capHit / 1000000).toFixed(1)}M • {player.stats.points} pts
                       </div>
                     )}

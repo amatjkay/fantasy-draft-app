@@ -1,0 +1,17 @@
+* text=auto
+
+# Shell scripts should use LF
+*.sh text eol=lf
+
+# PowerShell scripts on Windows
+*.ps1 text eol=crlf
+
+# Treat images as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+
+# SVG is text; normalize
+*.svg text eol=lf

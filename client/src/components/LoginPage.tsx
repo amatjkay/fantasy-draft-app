@@ -55,11 +55,8 @@ export function LoginPage({ onLoginSuccess }: Props) {
       background: 'linear-gradient(135deg, #053950 0%, #072338 100%)',
       padding: '20px',
     }}>
-      <div style={{
-        background: '#1A1D23',
+      <div className="card" style={{
         padding: '40px',
-        borderRadius: '12px',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
         width: '100%',
         maxWidth: '400px',
       }}>
@@ -71,21 +68,12 @@ export function LoginPage({ onLoginSuccess }: Props) {
         </p>
 
         {error && (
-          <div style={{
-            background: '#ffebee',
-            color: '#c62828',
-            padding: '12px',
-            borderRadius: '4px',
-            marginBottom: '16px',
-            fontSize: '14px',
-          }}>
-            {error}
-          </div>
+          <div className="alert alert-danger" style={{ marginBottom: '16px' }}>{error}</div>
         )}
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: '#ffffff' }}>
+            <label className="label">
               Логин
             </label>
             <input
@@ -94,6 +82,7 @@ export function LoginPage({ onLoginSuccess }: Props) {
               onChange={e => setLogin(e.target.value)}
               required
               minLength={3}
+              className="input"
               style={{
                 width: '100%',
                 padding: '12px',
@@ -108,7 +97,7 @@ export function LoginPage({ onLoginSuccess }: Props) {
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: '#ffffff' }}>
+            <label className="label">
               Пароль
             </label>
             <input
@@ -117,6 +106,7 @@ export function LoginPage({ onLoginSuccess }: Props) {
               onChange={e => setPassword(e.target.value)}
               required
               minLength={6}
+              className="input"
               style={{
                 width: '100%',
                 padding: '12px',
@@ -130,7 +120,7 @@ export function LoginPage({ onLoginSuccess }: Props) {
 
           {isRegistering && (
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: '#ffffff' }}>
+              <label className="label">
                 Название команды (опционально)
               </label>
               <input
@@ -138,6 +128,7 @@ export function LoginPage({ onLoginSuccess }: Props) {
                 value={teamName}
                 onChange={e => setTeamName(e.target.value)}
                 placeholder={`${login}'s Team`}
+                className="input"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -155,6 +146,7 @@ export function LoginPage({ onLoginSuccess }: Props) {
           <button
             type="submit"
             disabled={loading}
+            className="btn btn-primary"
             style={{
               width: '100%',
               padding: '14px',
@@ -172,21 +164,13 @@ export function LoginPage({ onLoginSuccess }: Props) {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '14px', color: '#94a3b8' }}>
+        <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '14px' }}>
           <button
             onClick={() => {
               setIsRegistering(!isRegistering);
               setError('');
             }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#60a5fa',
-              cursor: 'pointer',
-              fontSize: '14px',
-              textDecoration: 'underline',
-              fontWeight: '600',
-            }}
+            className="btn-link"
           >
             {isRegistering ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
           </button>
