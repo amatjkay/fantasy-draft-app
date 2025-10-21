@@ -1,0 +1,157 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Fantasy Draft API",
+    "version": "0.1.0",
+    "description": "REST API for Fantasy Hockey Draft (MVP)"
+  },
+  "servers": [
+    { "url": "http://localhost:3001" }
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "summary": "Register new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "login": { "type": "string" },
+                  "password": { "type": "string" },
+                  "teamName": { "type": "string" },
+                  "logo": { "type": "string" }
+                },
+                "required": ["login", "password", "teamName"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created" },
+          "400": { "description": "Invalid input or duplicate login" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "login": { "type": "string" },
+                  "password": { "type": "string" }
+                },
+                "required": ["login", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Logged in" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": { "summary": "Logout", "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/auth/me": {
+      "get": { "summary": "Current user", "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" } } }
+    },
+
+    "/api/draft/start": {
+      "post": {
+        "summary": "Start draft room",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "roomId": { "type": "string" },
+                  "pickOrder": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+                  "timerSec": { "type": "integer" }
+                },
+                "required": ["roomId", "pickOrder"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Draft started" },
+          "400": { "description": "Invalid input" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/draft/room": {
+      "get": {
+        "summary": "Get draft room state",
+        "parameters": [
+          { "in": "query", "name": "roomId", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" }, "400": { "description": "Missing roomId" }, "404": { "description": "Not found" } }
+      }
+    },
+    "/api/draft/state": {
+      "get": {
+        "summary": "Get draft state",
+        "parameters": [ { "in": "query", "name": "roomId", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "OK" }, "404": { "description": "Not found" } }
+      }
+    },
+    "/api/draft/pick": {
+      "post": {
+        "summary": "Make a pick",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "roomId": { "type": "string" },
+                  "playerId": { "type": "string" }
+                },
+                "required": ["roomId", "playerId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Pick successful" },
+          "400": { "description": "Validation or draft errors" },
+          "404": { "description": "Room not found" }
+        }
+      }
+    },
+
+    "/api/team": {
+      "get": {
+        "summary": "Get team",
+        "parameters": [ { "in": "query", "name": "userId", "schema": { "type": "string", "format": "uuid" }, "required": false } ],
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" }, "404": { "description": "Not found" } }
+      }
+    },
+    "/api/players": {
+      "get": {
+        "summary": "List players",
+        "parameters": [
+          { "in": "query", "name": "drafted", "schema": { "type": "boolean" } },
+          { "in": "query", "name": "position", "schema": { "type": "string" } },
+          { "in": "query", "name": "team", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/leaderboard": { "get": { "summary": "Leaderboard", "parameters": [ { "in": "query", "name": "week", "schema": { "type": "integer" } } ], "responses": { "200": { "description": "OK" } } } }
+  }
+}

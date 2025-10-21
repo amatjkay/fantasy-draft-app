@@ -1,0 +1,642 @@
+[
+  {
+    "id": "player-1",
+    "firstName": "Connor",
+    "lastName": "McDavid",
+    "position": "C",
+    "capHit": 12500000,
+    "team": "EDM",
+    "stats": {
+      "games": 76,
+      "goals": 64,
+      "assists": 89,
+      "points": 153
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-2",
+    "firstName": "Auston",
+    "lastName": "Matthews",
+    "position": "C",
+    "capHit": 11640250,
+    "team": "TOR",
+    "stats": {
+      "games": 74,
+      "goals": 69,
+      "assists": 38,
+      "points": 107
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-3",
+    "firstName": "Nathan",
+    "lastName": "MacKinnon",
+    "position": "C",
+    "capHit": 12600000,
+    "team": "COL",
+    "stats": {
+      "games": 82,
+      "goals": 51,
+      "assists": 89,
+      "points": 140
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-4",
+    "firstName": "Nikita",
+    "lastName": "Kucherov",
+    "position": "RW",
+    "capHit": 9500000,
+    "team": "TBL",
+    "stats": {
+      "games": 81,
+      "goals": 44,
+      "assists": 100,
+      "points": 144
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-5",
+    "firstName": "David",
+    "lastName": "Pastrnak",
+    "position": "RW",
+    "capHit": 11250000,
+    "team": "BOS",
+    "stats": {
+      "games": 82,
+      "goals": 47,
+      "assists": 63,
+      "points": 110
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-6",
+    "firstName": "Artemi",
+    "lastName": "Panarin",
+    "position": "LW",
+    "capHit": 11642857,
+    "team": "NYR",
+    "stats": {
+      "games": 82,
+      "goals": 49,
+      "assists": 71,
+      "points": 120
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-7",
+    "firstName": "Cale",
+    "lastName": "Makar",
+    "position": "D",
+    "capHit": 9000000,
+    "team": "COL",
+    "stats": {
+      "games": 77,
+      "goals": 29,
+      "assists": 61,
+      "points": 90
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-8",
+    "firstName": "Roman",
+    "lastName": "Josi",
+    "position": "D",
+    "capHit": 9059000,
+    "team": "NSH",
+    "stats": {
+      "games": 80,
+      "goals": 23,
+      "assists": 62,
+      "points": 85
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-9",
+    "firstName": "Igor",
+    "lastName": "Shesterkin",
+    "position": "G",
+    "capHit": 5666667,
+    "team": "NYR",
+    "stats": {
+      "games": 55,
+      "goals": 0,
+      "assists": 2,
+      "points": 2
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-10",
+    "firstName": "Connor",
+    "lastName": "Hellebuyck",
+    "position": "G",
+    "capHit": 8500000,
+    "team": "WPG",
+    "stats": {
+      "games": 60,
+      "goals": 0,
+      "assists": 3,
+      "points": 3
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-11",
+    "firstName": "Leon",
+    "lastName": "Draisaitl",
+    "position": "C",
+    "capHit": 8500000,
+    "team": "EDM",
+    "stats": {
+      "games": 80,
+      "goals": 41,
+      "assists": 65,
+      "points": 106
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-12",
+    "firstName": "Sidney",
+    "lastName": "Crosby",
+    "position": "C",
+    "capHit": 8700000,
+    "team": "PIT",
+    "stats": {
+      "games": 82,
+      "goals": 42,
+      "assists": 52,
+      "points": 94
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-13",
+    "firstName": "Mitchell",
+    "lastName": "Marner",
+    "position": "RW",
+    "capHit": 10903000,
+    "team": "TOR",
+    "stats": {
+      "games": 69,
+      "goals": 30,
+      "assists": 55,
+      "points": 85
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-14",
+    "firstName": "Matthew",
+    "lastName": "Tkachuk",
+    "position": "LW",
+    "capHit": 9500000,
+    "team": "FLA",
+    "stats": {
+      "games": 80,
+      "goals": 29,
+      "assists": 59,
+      "points": 88
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-15",
+    "firstName": "Adam",
+    "lastName": "Fox",
+    "position": "D",
+    "capHit": 9500000,
+    "team": "NYR",
+    "stats": {
+      "games": 72,
+      "goals": 17,
+      "assists": 56,
+      "points": 73
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-16",
+    "firstName": "Quinn",
+    "lastName": "Hughes",
+    "position": "D",
+    "capHit": 7850000,
+    "team": "VAN",
+    "stats": {
+      "games": 78,
+      "goals": 17,
+      "assists": 76,
+      "points": 93
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-17",
+    "firstName": "Andrei",
+    "lastName": "Vasilevskiy",
+    "position": "G",
+    "capHit": 9500000,
+    "team": "TBL",
+    "stats": {
+      "games": 61,
+      "goals": 0,
+      "assists": 2,
+      "points": 2
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-18",
+    "firstName": "Jack",
+    "lastName": "Hughes",
+    "position": "C",
+    "capHit": 8000000,
+    "team": "NJD",
+    "stats": {
+      "games": 78,
+      "goals": 43,
+      "assists": 56,
+      "points": 99
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-19",
+    "firstName": "Kirill",
+    "lastName": "Kaprizov",
+    "position": "LW",
+    "capHit": 9000000,
+    "team": "MIN",
+    "stats": {
+      "games": 75,
+      "goals": 40,
+      "assists": 56,
+      "points": 96
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-20",
+    "firstName": "Miro",
+    "lastName": "Heiskanen",
+    "position": "D",
+    "capHit": 8450000,
+    "team": "DAL",
+    "stats": {
+      "games": 82,
+      "goals": 14,
+      "assists": 48,
+      "points": 62
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-21",
+    "firstName": "Elias",
+    "lastName": "Pettersson",
+    "position": "C",
+    "capHit": 7350000,
+    "team": "VAN",
+    "stats": {
+      "games": 80,
+      "goals": 39,
+      "assists": 50,
+      "points": 89
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-22",
+    "firstName": "Brad",
+    "lastName": "Marchand",
+    "position": "LW",
+    "capHit": 6125000,
+    "team": "BOS",
+    "stats": {
+      "games": 82,
+      "goals": 29,
+      "assists": 38,
+      "points": 67
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-23",
+    "firstName": "Aleksander",
+    "lastName": "Barkov",
+    "position": "C",
+    "capHit": 10000000,
+    "team": "FLA",
+    "stats": {
+      "games": 73,
+      "goals": 23,
+      "assists": 57,
+      "points": 80
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-24",
+    "firstName": "Tim",
+    "lastName": "Stutzle",
+    "position": "C",
+    "capHit": 8350000,
+    "team": "OTT",
+    "stats": {
+      "games": 78,
+      "goals": 35,
+      "assists": 55,
+      "points": 90
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-25",
+    "firstName": "Jason",
+    "lastName": "Robertson",
+    "position": "LW",
+    "capHit": 7750000,
+    "team": "DAL",
+    "stats": {
+      "games": 82,
+      "goals": 46,
+      "assists": 63,
+      "points": 109
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-26",
+    "firstName": "Jake",
+    "lastName": "Oettinger",
+    "position": "G",
+    "capHit": 4000000,
+    "team": "DAL",
+    "stats": {
+      "games": 62,
+      "goals": 0,
+      "assists": 1,
+      "points": 1
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-27",
+    "firstName": "Ilya",
+    "lastName": "Sorokin",
+    "position": "G",
+    "capHit": 8250000,
+    "team": "NYI",
+    "stats": {
+      "games": 56,
+      "goals": 0,
+      "assists": 2,
+      "points": 2
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-28",
+    "firstName": "Sebastian",
+    "lastName": "Aho",
+    "position": "C",
+    "capHit": 8460000,
+    "team": "CAR",
+    "stats": {
+      "games": 82,
+      "goals": 36,
+      "assists": 53,
+      "points": 89
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-29",
+    "firstName": "Timo",
+    "lastName": "Meier",
+    "position": "RW",
+    "capHit": 8800000,
+    "team": "NJD",
+    "stats": {
+      "games": 82,
+      "goals": 28,
+      "assists": 40,
+      "points": 68
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-30",
+    "firstName": "Moritz",
+    "lastName": "Seider",
+    "position": "D",
+    "capHit": 8550000,
+    "team": "DET",
+    "stats": {
+      "games": 82,
+      "goals": 9,
+      "assists": 33,
+      "points": 42
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-31",
+    "firstName": "Rasmus",
+    "lastName": "Dahlin",
+    "position": "D",
+    "capHit": 11000000,
+    "team": "BUF",
+    "stats": {
+      "games": 78,
+      "goals": 20,
+      "assists": 53,
+      "points": 73
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-32",
+    "firstName": "Kyle",
+    "lastName": "Connor",
+    "position": "LW",
+    "capHit": 7140000,
+    "team": "WPG",
+    "stats": {
+      "games": 79,
+      "goals": 31,
+      "assists": 37,
+      "points": 68
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-33",
+    "firstName": "Gabriel",
+    "lastName": "Landeskog",
+    "position": "LW",
+    "capHit": 7000000,
+    "team": "COL",
+    "stats": {
+      "games": 51,
+      "goals": 20,
+      "assists": 39,
+      "points": 59
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-34",
+    "firstName": "Brayden",
+    "lastName": "Point",
+    "position": "C",
+    "capHit": 9500000,
+    "team": "TBL",
+    "stats": {
+      "games": 82,
+      "goals": 51,
+      "assists": 44,
+      "points": 95
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-35",
+    "firstName": "Mika",
+    "lastName": "Zibanejad",
+    "position": "C",
+    "capHit": 8500000,
+    "team": "NYR",
+    "stats": {
+      "games": 81,
+      "goals": 39,
+      "assists": 33,
+      "points": 72
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-36",
+    "firstName": "Erik",
+    "lastName": "Karlsson",
+    "position": "D",
+    "capHit": 11500000,
+    "team": "PIT",
+    "stats": {
+      "games": 82,
+      "goals": 25,
+      "assists": 76,
+      "points": 101
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-37",
+    "firstName": "Juuse",
+    "lastName": "Saros",
+    "position": "G",
+    "capHit": 5000000,
+    "team": "NSH",
+    "stats": {
+      "games": 64,
+      "goals": 0,
+      "assists": 1,
+      "points": 1
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-38",
+    "firstName": "William",
+    "lastName": "Nylander",
+    "position": "RW",
+    "capHit": 6962366,
+    "team": "TOR",
+    "stats": {
+      "games": 82,
+      "goals": 40,
+      "assists": 58,
+      "points": 98
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-39",
+    "firstName": "Brady",
+    "lastName": "Tkachuk",
+    "position": "LW",
+    "capHit": 8205714,
+    "team": "OTT",
+    "stats": {
+      "games": 82,
+      "goals": 35,
+      "assists": 44,
+      "points": 79
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  },
+  {
+    "id": "player-40",
+    "firstName": "Jeremy",
+    "lastName": "Swayman",
+    "position": "G",
+    "capHit": 3475000,
+    "team": "BOS",
+    "stats": {
+      "games": 44,
+      "goals": 0,
+      "assists": 1,
+      "points": 1
+    },
+    "draftedBy": null,
+    "draftWeek": null
+  }
+]

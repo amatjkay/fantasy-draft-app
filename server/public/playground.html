@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fantasy Draft Playground</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 24px; background: #0b1220; color: #e2e8f0; }
+    h1, h2 { margin: 0 0 12px; }
+    section { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    input, button, textarea { font: inherit; }
+    input[type="text"], input[type="password"] { width: 100%; padding: 8px 10px; background: #0b1220; color: #e2e8f0; border: 1px solid #374151; border-radius: 8px; }
+    label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 6px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .btn { background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+    .btn.secondary { background: #374151; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    pre { background: #0b1220; border: 1px solid #374151; border-radius: 8px; padding: 10px; overflow: auto; }
+    small { color: #9ca3af; }
+    .tag { display: inline-block; padding: 2px 6px; background: #111827; border: 1px solid #374151; border-radius: 6px; margin-right: 6px; color: #a7f3d0; }
+  </style>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <h1>Fantasy Draft API — Playground</h1>
+  <p><small>Эта страница помогает быстро протестировать REST + Socket.IO без отдельного фронтенда.</small></p>
+
+  <section id="auth">
+    <h2>Аутентификация</h2>
+    <div class="row">
+      <div>
+        <label>Login</label>
+        <input type="text" id="login" placeholder="login" />
+      </div>
+      <div>
+        <label>Password</label>
+        <input type="password" id="password" placeholder="password" />
+      </div>
+    </div>
+    <div class="row" style="margin-top: 8px;">
+      <div>
+        <label>Team Name</label>
+        <input type="text" id="teamName" placeholder="Demo Team" />
+      </div>
+      <div>
+        <label>Logo (optional)</label>
+        <input type="text" id="logo" placeholder="default-logo" />
+      </div>
+    </div>
+    <div style="margin-top: 10px; display:flex; gap: 8px;">
+      <button class="btn" id="btnRegister">Register</button>
+      <button class="btn" id="btnLogin">Login</button>
+      <button class="btn secondary" id="btnMe">/me</button>
+      <span id="currentUser" class="tag">user: -</span>
+    </div>
+  </section>
+
+  <section id="players">
+    <h2>Игроки</h2>
+    <div style="display:flex; gap: 8px; margin-bottom: 8px;">
+      <button class="btn" id="btnListPlayers">GET /api/players</button>
+      <button class="btn secondary" id="btnListAvailable">GET /api/players?drafted=false</button>
+    </div>
+    <pre id="playersOut" style="max-height: 200px;"></pre>
+  </section>
+
+  <section id="draft">
+    <h2>Драфт</h2>
+    <div class="row">
+      <div>
+        <label>Room Id</label>
+        <input type="text" id="roomId" placeholder="room-123" />
+      </div>
+      <div>
+        <label>Pick Order (comma sep userIds)</label>
+        <input type="text" id="pickOrder" placeholder="userId1,userId2" />
+      </div>
+    </div>
+    <div style="margin-top: 10px; display:flex; gap: 8px;">
+      <button class="btn" id="btnStart">POST /api/draft/start</button>
+      <button class="btn secondary" id="btnRoom">GET /api/draft/room</button>
+      <button class="btn secondary" id="btnState">GET /api/draft/state</button>
+    </div>
+
+    <div class="row" style="margin-top: 10px;">
+      <div>
+        <label>Player Id</label>
+        <input type="text" id="playerId" placeholder="player-1" />
+      </div>
+      <div style="display:flex; align-items: end;">
+        <button class="btn" id="btnPick">POST /api/draft/pick</button>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top: 10px;">
+      <div>
+        <label>draft:state</label>
+        <pre id="stateOut" style="max-height: 220px;"></pre>
+      </div>
+      <div>
+        <label>log</label>
+        <pre id="logOut" style="max-height: 220px;"></pre>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const out = (el, data) => el.textContent = (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+    const log = (msg, data) => {
+      const o = $('#logOut');
+      o.textContent += `\n${new Date().toLocaleTimeString()} | ${msg} ${data ? JSON.stringify(data) : ''}`;
+      o.scrollTop = o.scrollHeight;
+    };
+
+    const api = async (path, opts = {}) => {
+      const resp = await fetch(path, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+      });
+      const text = await resp.text();
+      try { return { status: resp.status, body: JSON.parse(text) }; } catch { return { status: resp.status, body: text }; }
+    };
+
+    // Socket.IO
+    const socket = io();
+    socket.on('connect', () => log('socket connected', { id: socket.id }));
+    socket.on('draft:state', (s) => {
+      out($('#stateOut'), s);
+      log('draft:state', { pickIndex: s.pickIndex, activeUserId: s.activeUserId });
+    });
+    socket.on('draft:autopick', (p) => log('draft:autopick', p));
+
+    // Auth handlers
+    $('#btnRegister').onclick = async () => {
+      const login = $('#login').value.trim();
+      const password = $('#password').value;
+      const teamName = $('#teamName').value || 'Demo Team';
+      const logo = $('#logo').value || 'default-logo';
+      const r = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ login, password, teamName, logo }) });
+      log('register', r);
+      if (r.status === 201) {
+        $('#currentUser').textContent = `user: ${r.body.userId}`;
+      }
+    };
+    $('#btnLogin').onclick = async () => {
+      const login = $('#login').value.trim();
+      const password = $('#password').value;
+      const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ login, password }) });
+      log('login', r);
+      if (r.status === 200) $('#currentUser').textContent = `user: ${r.body.userId}`;
+    };
+    $('#btnMe').onclick = async () => {
+      const r = await api('/api/auth/me');
+      log('/me', r);
+    };
+
+    // Players
+    $('#btnListPlayers').onclick = async () => {
+      const r = await api('/api/players');
+      out($('#playersOut'), r.body);
+    };
+    $('#btnListAvailable').onclick = async () => {
+      const r = await api('/api/players?drafted=false');
+      out($('#playersOut'), r.body);
+    };
+
+    // Draft
+    $('#btnStart').onclick = async () => {
+      const roomId = $('#roomId').value || `room-${Math.random().toString(36).slice(2)}`;
+      const pickOrderRaw = $('#pickOrder').value.trim();
+      const pickOrder = pickOrderRaw ? pickOrderRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const r = await api('/api/draft/start', { method: 'POST', body: JSON.stringify({ roomId, pickOrder, timerSec: 60 }) });
+      log('draft:start', r);
+    };
+    $('#btnRoom').onclick = async () => {
+      const roomId = $('#roomId').value.trim();
+      const r = await api(`/api/draft/room?roomId=${encodeURIComponent(roomId)}`);
+      log('draft:room', r);
+      out($('#stateOut'), r.body);
+    };
+    $('#btnState').onclick = async () => {
+      const roomId = $('#roomId').value.trim();
+      const r = await api(`/api/draft/state?roomId=${encodeURIComponent(roomId)}`);
+      log('draft:state (GET)', r);
+      out($('#stateOut'), r.body);
+    };
+    $('#btnPick').onclick = async () => {
+      const roomId = $('#roomId').value.trim();
+      const playerId = $('#playerId').value.trim();
+      const r = await api('/api/draft/pick', { method: 'POST', body: JSON.stringify({ roomId, playerId }) });
+      log('draft:pick', r);
+    };
+  </script>
+</body>
+</html>
