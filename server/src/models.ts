@@ -60,6 +60,8 @@ export const PlayerSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   position: z.enum(POSITIONS),
+  // Optional multi-position support: eligible positions including primary
+  eligiblePositions: z.array(z.enum(POSITIONS)).optional(),
   capHit: z.number().int().positive(),
   team: z.string(),
   stats: PlayerStatsSchema,
@@ -73,6 +75,14 @@ export type Player = z.infer<typeof PlayerSchema>;
 // Team
 // ============================================================================
 
+// Roster slots: fixed layout LW, C, RW, D, D, G
+export const RosterSlotSchema = z.object({
+  position: z.enum(POSITIONS),
+  playerId: z.string().uuid().nullable().default(null),
+});
+
+export type RosterSlot = z.infer<typeof RosterSlotSchema>;
+
 export const TeamSchema = z.object({
   teamId: z.string().uuid(),
   ownerId: z.string().uuid(),
@@ -81,6 +91,8 @@ export const TeamSchema = z.object({
   players: z.array(z.string()).max(MAX_PLAYERS_PER_TEAM),
   salaryTotal: z.number().int().nonnegative().max(SALARY_CAP),
   week: z.number().int().positive(),
+  // New: explicit roster slots with assignments
+  slots: z.array(RosterSlotSchema).length(MAX_PLAYERS_PER_TEAM),
 });
 
 export type Team = z.infer<typeof TeamSchema>;
@@ -167,6 +179,14 @@ export function isTeamFull(team: Team): boolean {
 // Подсчёт занятых позиций в команде по игрокам
 export function getTeamPositionCounts(team: Team, playersMap: Map<string, Player>): Record<Position, number> {
   const counts: Record<Position, number> = { C: 0, LW: 0, RW: 0, D: 0, G: 0 };
+  // Prefer explicit slots if available
+  if (team.slots && Array.isArray(team.slots)) {
+    for (const s of team.slots) {
+      if (s.playerId) counts[s.position] = (counts[s.position] ?? 0) + 1;
+    }
+    return counts;
+  }
+  // Fallback by deriving from players
   for (const pid of team.players) {
     const p = playersMap.get(pid);
     if (p) {
@@ -178,7 +198,41 @@ export function getTeamPositionCounts(team: Team, playersMap: Map<string, Player
 
 // Проверка наличия свободного слота позиции для игрока
 export function hasPositionSlotAvailable(team: Team, playersMap: Map<string, Player>, position: Position): boolean {
+  // If slots exist, check unfilled slot for that position
+  if (team.slots && Array.isArray(team.slots)) {
+    return team.slots.some(s => s.position === position && !s.playerId);
+  }
+  // Fallback to counts
   const counts = getTeamPositionCounts(team, playersMap);
   const limit = ROSTER_SLOTS[position] ?? 0;
   return counts[position] < limit;
+}
+
+// =========================================================================
+// Multi-position helpers
+// =========================================================================
+
+export function getEligiblePositions(player: Player): Position[] {
+  const list = (player as any).eligiblePositions as Position[] | undefined;
+  if (Array.isArray(list) && list.length) return list;
+  return [player.position];
+}
+
+export function findFirstAvailableSlot(team: Team, positions: Position[]): Position | undefined {
+  for (const pos of positions) {
+    if (team.slots.some(s => s.position === pos && !s.playerId)) return pos;
+  }
+  return undefined;
+}
+
+export function assignPlayerToSlot(team: Team, position: Position, playerId: string): void {
+  const slot = team.slots.find(s => s.position === position && !s.playerId);
+  if (!slot) throw new Error(`No empty slot for position ${position}`);
+  slot.playerId = playerId;
+}
+
+export function findAssignablePosition(team: Team, playersMap: Map<string, Player>, player: Player): Position | undefined {
+  const eligible = getEligiblePositions(player);
+  // Simple strategy: pick first available eligible slot
+  return findFirstAvailableSlot(team, eligible);
 }

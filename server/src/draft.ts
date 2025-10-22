@@ -1,4 +1,4 @@
-import { Player, Team, DraftPick, SALARY_CAP, MAX_PLAYERS_PER_TEAM, canAffordPlayer, isTeamFull, hasPositionSlotAvailable } from './models';
+import { Player, Team, DraftPick, SALARY_CAP, MAX_PLAYERS_PER_TEAM, canAffordPlayer, isTeamFull, hasPositionSlotAvailable, findAssignablePosition, assignPlayerToSlot } from './models';
 
 export type DraftConfig = {
   roomId: string;
@@ -157,7 +157,8 @@ export class DraftRoom {
 
     // Предварительно вычислим ограничения
     const overCap = !canAffordPlayer(team, player);
-    const noSlot = !hasPositionSlotAvailable(team, players, player.position);
+    const assignPos = findAssignablePosition(team, players, player);
+    const noSlot = !assignPos;
 
     // Проверка salary cap (имеет приоритет, если оба условия нарушены)
     if (overCap) {
@@ -167,15 +168,17 @@ export class DraftRoom {
       );
     }
 
-    // Проверка наличия свободного слота позиции
+    // Проверка наличия свободного слота позиции (с учётом мультипозиций)
     if (noSlot) {
-      throw new Error(`No roster slot available for position ${player.position}`);
+      throw new Error(`No roster slot available for eligible positions`);
     }
 
     // Atomic update: обновляем player и team
     player.draftedBy = userId;
     player.draftWeek = 1; // TODO: получать из конфига
     
+    // Assign into explicit roster slot and reflect in legacy array
+    assignPlayerToSlot(team, assignPos!, playerId);
     team.players.push(playerId);
     team.salaryTotal += player.capHit;
 
@@ -224,7 +227,7 @@ export class DraftRoom {
     const availablePlayers = Array.from(players.values())
       .filter(p => p.draftedBy === null)
       .filter(p => canAffordPlayer(team, p))
-      .filter(p => hasPositionSlotAvailable(team, players, p.position));
+      .filter(p => !!findAssignablePosition(team, players, p));
 
     if (availablePlayers.length === 0) {
       console.warn('[DraftRoom.makeAutoPick] No affordable slottable players found!');
@@ -238,7 +241,7 @@ export class DraftRoom {
       const anyAvailable = Array.from(players.values())
         .filter(p => p.draftedBy === null)
         .filter(p => canAffordPlayer(team, p))
-        .filter(p => hasPositionSlotAvailable(team, players, p.position)) // MUST check slots!
+        .filter(p => !!findAssignablePosition(team, players, p)) // MUST check slots!
         .sort((a, b) => a.capHit - b.capHit); // cheapest first
       
       if (anyAvailable.length === 0) {

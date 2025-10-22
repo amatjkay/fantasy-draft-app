@@ -6,6 +6,7 @@ interface Player {
   firstName: string;
   lastName: string;
   position: string;
+  eligiblePositions?: string[];
   capHit: number;
   team: string;
   stats: { games: number; goals: number; assists: number; points: number };
@@ -144,16 +145,28 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
       // API now returns picks as full player objects in data.team.picks
       const picks = data.team.picks || data.players || [];
       const capSpent = picks.reduce((sum: number, p: Player) => sum + p.capHit, 0);
-      // Roster: LW, C, RW, D, D, G (6 slots total)
-      const defensemen = picks.filter((p: Player) => p.position === 'D');
-      const slots = [
-        { position: 'C', filled: picks.some((p: Player) => p.position === 'C') },
-        { position: 'LW', filled: picks.some((p: Player) => p.position === 'LW') },
-        { position: 'RW', filled: picks.some((p: Player) => p.position === 'RW') },
-        { position: 'D', filled: defensemen.length >= 1 },
-        { position: 'D', filled: defensemen.length >= 2 },
-        { position: 'G', filled: picks.some((p: Player) => p.position === 'G') },
-      ];
+      // Prefer server-provided explicit slots with assignments if present
+      let slots: { position: string; filled: boolean; player?: Player }[] = [];
+      if (Array.isArray(data.team.slots)) {
+        const byId: Record<string, Player> = {};
+        for (const p of picks) byId[p.id] = p;
+        slots = data.team.slots.map((s: { position: string; playerId?: string | null }) => ({
+          position: s.position,
+          filled: !!s.playerId,
+          player: s.playerId ? byId[s.playerId] : undefined,
+        }));
+      } else {
+        // Fallback: derive from picks (legacy)
+        const defensemen = picks.filter((p: Player) => p.position === 'D');
+        slots = [
+          { position: 'C', filled: picks.some((p: Player) => p.position === 'C') },
+          { position: 'LW', filled: picks.some((p: Player) => p.position === 'LW') },
+          { position: 'RW', filled: picks.some((p: Player) => p.position === 'RW') },
+          { position: 'D', filled: defensemen.length >= 1 },
+          { position: 'D', filled: defensemen.length >= 2 },
+          { position: 'G', filled: picks.some((p: Player) => p.position === 'G') },
+        ];
+      }
       setMyTeam({ picks, capSpent, capRemaining: 95500000 - capSpent, slots });
     }
   };
@@ -448,11 +461,12 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
               <tbody>
                 {filteredPlayers.slice(0, 100).map(p => {
                   const value = (p.stats.points / (p.capHit / 1000000)).toFixed(1);
-                  const fitsCapAndSlot = (myTeam.capRemaining >= p.capHit) && myTeam.slots.some(s => s.position === p.position && !s.filled);
+                  const eligible = (Array.isArray(p.eligiblePositions) && p.eligiblePositions.length ? p.eligiblePositions : [p.position]);
+                  const fitsCapAndSlot = (myTeam.capRemaining >= p.capHit) && myTeam.slots.some(s => eligible.includes(s.position) && !s.filled);
                   return (
                     <tr key={p.id} style={{ borderBottom: '1px solid #334155', background: fitsCapAndSlot ? '#0a3d52' : '#1e293b' }}>
                       <td style={{ padding: '10px', color: '#ffffff', fontWeight: '600', fontSize: '14px' }}>{p.firstName} {p.lastName}</td>
-                      <td style={{ padding: '10px', textAlign: 'center', fontWeight: '700', color: '#60a5fa', fontSize: '14px' }}>{p.position}</td>
+                      <td style={{ padding: '10px', textAlign: 'center', fontWeight: '700', color: '#60a5fa', fontSize: '14px' }}>{eligible.join('/')}</td>
                       <td style={{ padding: '10px', textAlign: 'center', color: '#94a3b8', fontWeight: '600' }}>{p.team}</td>
                       <td style={{ padding: '10px', textAlign: 'right', color: '#10b981', fontWeight: '700', fontSize: '14px' }}>{p.stats.points}</td>
                       <td style={{ padding: '10px', textAlign: 'right', color: '#ef4444', fontWeight: '600' }}>${(p.capHit / 1000000).toFixed(1)}M</td>

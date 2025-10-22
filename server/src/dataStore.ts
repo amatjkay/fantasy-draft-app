@@ -58,6 +58,15 @@ class DataStore {
       players: [],
       salaryTotal: 0,
       week,
+      // Initialize explicit roster slots in fixed order: LW, C, RW, D, D, G
+      slots: [
+        { position: 'LW', playerId: null },
+        { position: 'C', playerId: null },
+        { position: 'RW', playerId: null },
+        { position: 'D', playerId: null },
+        { position: 'D', playerId: null },
+        { position: 'G', playerId: null },
+      ],
     };
     
     this.teams.set(ownerId, team);
@@ -128,6 +137,9 @@ class DataStore {
     this.teams.forEach(team => {
       team.players = [];
       team.salaryTotal = 0;
+      if (team.slots && Array.isArray(team.slots)) {
+        team.slots.forEach(s => { s.playerId = null; });
+      }
     });
   }
 }

@@ -54,9 +54,13 @@ router.get('/players', (req: Request, res: Response) => {
       players = players.filter(p => showDrafted ? p.draftedBy !== null : p.draftedBy === null);
     }
 
-    // Фильтр по позиции
+    // Фильтр по позиции (учитывая мультипозиции)
     if (position) {
-      players = players.filter(p => p.position === position);
+      players = players.filter(p => {
+        if (p.position === position) return true;
+        const ep = (p as any).eligiblePositions as string[] | undefined;
+        return Array.isArray(ep) && ep.includes(position);
+      });
     }
 
     // Фильтр по команде NHL
