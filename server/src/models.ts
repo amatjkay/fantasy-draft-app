@@ -78,7 +78,7 @@ export type Player = z.infer<typeof PlayerSchema>;
 // Roster slots: fixed layout LW, C, RW, D, D, G
 export const RosterSlotSchema = z.object({
   position: z.enum(POSITIONS),
-  playerId: z.string().uuid().nullable().default(null),
+  playerId: z.string().nullable().default(null),
 });
 
 export type RosterSlot = z.infer<typeof RosterSlotSchema>;
@@ -92,7 +92,7 @@ export const TeamSchema = z.object({
   salaryTotal: z.number().int().nonnegative().max(SALARY_CAP),
   week: z.number().int().positive(),
   // New: explicit roster slots with assignments
-  slots: z.array(RosterSlotSchema).length(MAX_PLAYERS_PER_TEAM),
+  slots: z.array(RosterSlotSchema).length(MAX_PLAYERS_PER_TEAM).optional(),
 });
 
 export type Team = z.infer<typeof TeamSchema>;
@@ -219,13 +219,16 @@ export function getEligiblePositions(player: Player): Position[] {
 }
 
 export function findFirstAvailableSlot(team: Team, positions: Position[]): Position | undefined {
-  for (const pos of positions) {
-    if (team.slots.some(s => s.position === pos && !s.playerId)) return pos;
+  if (Array.isArray(team.slots)) {
+    for (const pos of positions) {
+      if (team.slots.some(s => s.position === pos && !s.playerId)) return pos;
+    }
   }
   return undefined;
 }
 
 export function assignPlayerToSlot(team: Team, position: Position, playerId: string): void {
+  if (!Array.isArray(team.slots)) return; // legacy team without explicit slots
   const slot = team.slots.find(s => s.position === position && !s.playerId);
   if (!slot) throw new Error(`No empty slot for position ${position}`);
   slot.playerId = playerId;
@@ -233,6 +236,14 @@ export function assignPlayerToSlot(team: Team, position: Position, playerId: str
 
 export function findAssignablePosition(team: Team, playersMap: Map<string, Player>, player: Player): Position | undefined {
   const eligible = getEligiblePositions(player);
-  // Simple strategy: pick first available eligible slot
-  return findFirstAvailableSlot(team, eligible);
+  // Prefer explicit slots if present
+  const slotPos = findFirstAvailableSlot(team, eligible);
+  if (slotPos) return slotPos;
+  // Fallback: counts-based check when slots are not defined
+  const counts = getTeamPositionCounts(team, playersMap);
+  for (const pos of eligible) {
+    const limit = ROSTER_SLOTS[pos] ?? 0;
+    if (counts[pos] < limit) return pos;
+  }
+  return undefined;
 }

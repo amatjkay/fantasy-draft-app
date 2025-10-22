@@ -28,6 +28,7 @@ interface DraftState {
   activeUserId: string | null;
   timerRemainingMs: number;
   picks: Array<{ userId: string; playerId: string; autopick: boolean }>;
+  paused?: boolean;
 }
 
 interface Props {
@@ -46,6 +47,8 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
   const [sortBy, setSortBy] = useState<'points' | 'capHit' | 'value'>('value');
   const [notification, setNotification] = useState<string>('');
   const socketRef = useRef<Socket | null>(null);
+  const [reconnectInfo, setReconnectInfo] = useState<{ userId: string; endsAt: number } | null>(null);
+  const [reconnectSeconds, setReconnectSeconds] = useState<number>(0);
 
   useEffect(() => {
     // Connect to server
@@ -61,6 +64,11 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
     socket.on('draft:state', (state: DraftState) => {
       console.log('[DraftRoom] Received draft:state:', state);
       setDraftState(state);
+      // Clear reconnect banner when draft resumes
+      if (!state.paused) {
+        setReconnectInfo(null);
+        setReconnectSeconds(0);
+      }
       
       // Trigger quick pick for bots (5 seconds)
       if (state.started && state.activeUserId?.startsWith('bot-')) {
@@ -77,6 +85,18 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
       // Reload players and team on state change
       loadPlayers();
       loadMyTeam();
+    });
+
+    socket.on('draft:reconnect_wait', (payload: { roomId: string; userId: string; graceMs: number }) => {
+      console.log('[DraftRoom] Received draft:reconnect_wait:', payload);
+      const endsAt = Date.now() + (payload.graceMs || 60000);
+      setReconnectInfo({ userId: payload.userId, endsAt });
+    });
+
+    socket.on('player:reconnected', (payload: { roomId: string; userId: string }) => {
+      console.log('[DraftRoom] Received player:reconnected:', payload);
+      setReconnectInfo(null);
+      setReconnectSeconds(0);
     });
 
     socket.on('draft:timer', (data: { timerRemainingMs: number; activeUserId: string }) => {
@@ -130,6 +150,19 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
       socket.disconnect();
     };
   }, [roomId, userId]);
+
+  // Countdown for reconnect banner
+  useEffect(() => {
+    if (!reconnectInfo) return;
+    const id = setInterval(() => {
+      const sec = Math.max(0, Math.ceil((reconnectInfo.endsAt - Date.now()) / 1000));
+      setReconnectSeconds(sec);
+      if (sec <= 0) {
+        clearInterval(id);
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [reconnectInfo]);
 
   const loadPlayers = async () => {
     const res = await fetch('http://localhost:3001/api/players', { credentials: 'include' });
@@ -285,6 +318,29 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
           animation: 'slideDown 0.3s ease-out',
         }}>
           {notification}
+        </div>
+      )}
+
+      {/* Reconnect Banner - Center Top */}
+      {reconnectInfo && !draftState?.completed && (
+        <div style={{
+          position: 'fixed',
+          top: '125px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+          color: '#111827',
+          padding: '14px 28px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 20px rgba(245, 158, 11, 0.35)',
+          zIndex: 1999,
+          fontSize: '15px',
+          fontWeight: '700',
+          minWidth: '320px',
+          textAlign: 'center',
+        }}>
+          <span style={{ marginRight: 8 }}>🔌 Ожидаем переподключение игрока…</span>
+          <span>осталось {reconnectSeconds}s</span>
         </div>
       )}
 
@@ -474,17 +530,17 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
                       <td style={{ padding: '8px', textAlign: 'center' }}>
                         <button
                           onClick={() => makePick(p.id)}
-                          disabled={!isMyTurn || !fitsCapAndSlot}
+                          disabled={!isMyTurn || !fitsCapAndSlot || !!draftState?.paused}
                           style={{
                             padding: '8px 16px',
-                            background: (isMyTurn && fitsCapAndSlot) ? 'linear-gradient(135deg, #10b981, #059669)' : '#475569',
+                            background: (isMyTurn && fitsCapAndSlot && !draftState?.paused) ? 'linear-gradient(135deg, #10b981, #059669)' : '#475569',
                             color: 'white',
                             border: 'none',
                             borderRadius: '6px',
-                            cursor: (isMyTurn && fitsCapAndSlot) ? 'pointer' : 'not-allowed',
+                            cursor: (isMyTurn && fitsCapAndSlot && !draftState?.paused) ? 'pointer' : 'not-allowed',
                             fontSize: '13px',
                             fontWeight: '700',
-                            boxShadow: (isMyTurn && fitsCapAndSlot) ? '0 2px 6px rgba(16, 185, 129, 0.3)' : 'none',
+                            boxShadow: (isMyTurn && fitsCapAndSlot && !draftState?.paused) ? '0 2px 6px rgba(16, 185, 129, 0.3)' : 'none',
                           }}
                         >
                           Pick

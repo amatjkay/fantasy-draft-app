@@ -11,6 +11,7 @@ import { sessionMiddleware } from './session';
 import { logger } from './utils/logger';
 import { LobbyManager } from './lobby';
 import { seedAdmin } from './seedAdmin';
+import { startPositionsUpdater } from './services/positionsUpdater';
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 
@@ -73,10 +74,17 @@ function restoreFromRepository() {
 // Seed admin user on startup
 seedAdmin().catch(err => console.error('[Seed] Failed to create admin:', err));
 
+// Start positions updater (eligiblePositions) on an interval
+startPositionsUpdater();
+
 // Presence tracking: roomId -> set of userIds
 const roomPresence = new Map<string, Set<string>>();
 // socket.id -> list of memberships to cleanup on disconnect
 const socketMemberships = new Map<string, Array<{ roomId: string; userId?: string }>>();
+
+// Reconnect grace timers: roomId -> { userId, timeout }
+const reconnectTimers = new Map<string, { userId: string; timeout: NodeJS.Timeout }>();
+const GRACE_MS = 60 * 1000;
 
 function broadcastPresence(roomId: string) {
   const users = Array.from(roomPresence.get(roomId) ?? []);
@@ -111,6 +119,19 @@ io.on('connection', (socket: Socket) => {
     if (room) {
       const state = room.getState();
       socket.emit('draft:state', state);
+    }
+
+    // If this user had a pending reconnect grace, cancel and resume
+    const pending = reconnectTimers.get(roomId);
+    if (pending && effectiveUserId && pending.userId === effectiveUserId) {
+      clearTimeout(pending.timeout);
+      reconnectTimers.delete(roomId);
+      const r = draftManager.get(roomId);
+      if (r) {
+        r.resume();
+        io.to(roomId).emit('player:reconnected', { roomId, userId: effectiveUserId });
+        io.to(roomId).emit('draft:state', r.getState());
+      }
     }
   });
 
@@ -441,6 +462,46 @@ io.on('connection', (socket: Socket) => {
           set.delete(userId);
           if (!set.size) roomPresence.delete(roomId);
           else broadcastPresence(roomId);
+        }
+
+        // If disconnecting user is the active picker, pause and start grace timer
+        const room = draftManager.get(roomId);
+        if (room) {
+          const state = room.getState();
+          if (state.activeUserId === userId && !state.paused && !reconnectTimers.has(roomId)) {
+            room.pause();
+            io.to(roomId).emit('draft:reconnect_wait', { roomId, userId, graceMs: GRACE_MS });
+            const timeout = setTimeout(() => {
+              reconnectTimers.delete(roomId);
+              try {
+                const players = dataStore.getPlayersMap();
+                const teams = dataStore.getTeamsMap();
+                const newState = room.makeAutoPick(userId, players, teams);
+                io.to(roomId).emit('draft:state', newState);
+                const last = newState.picks[newState.picks.length - 1];
+                io.to(roomId).emit('draft:autopick', { roomId, pickIndex: newState.pickIndex - 1, pick: last });
+                // Persist autopick (best-effort)
+                try {
+                  const repo = getDraftRepository();
+                  const rec: DraftPickRecord = {
+                    roomId,
+                    pickIndex: last.pickIndex,
+                    round: last.round,
+                    slot: last.slot,
+                    userId: last.userId,
+                    playerId: last.playerId,
+                    autopick: true,
+                    createdAt: Date.now(),
+                  };
+                  repo.savePick(rec);
+                } catch {}
+              } catch (err: any) {
+                console.error('[reconnect-grace] Autopick failed:', err?.message || err);
+                io.to(roomId).emit('draft:error', { message: `Autopick failed after reconnect grace: ${err?.message || err}` });
+              }
+            }, GRACE_MS);
+            reconnectTimers.set(roomId, { userId, timeout });
+          }
         }
       }
     });
