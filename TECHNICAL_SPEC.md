@@ -447,7 +447,7 @@ import { io as Client } from 'socket.io-client';
 it('draft start and pick flow', async () => {
   const client = Client(`http://localhost:${port}`);
   
-  client.emit('draft:start', { roomId: 'room-1', pickOrder: ['u1', 'u2'], timerSec: 30 });
+  client.emit('draft:start', { roomId: 'room-1', pickOrder: ['u1', 'u2'], timerSec: 60 });
   const state = await waitForEvent(client, 'draft:state');
   
   expect(state.started).toBe(true);

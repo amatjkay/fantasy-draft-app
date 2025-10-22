@@ -104,7 +104,7 @@ export default function App() {
       socketRef.current.emit('draft:join', { roomId: id, userId });
       appendLog('draft:join(before-start)', { roomId: id, userId });
     }
-    const r = await request('/api/draft/start', { method: 'POST', body: JSON.stringify({ roomId: id, pickOrder: order, timerSec: 30 }) });
+    const r = await request('/api/draft/start', { method: 'POST', body: JSON.stringify({ roomId: id, pickOrder: order, timerSec: 60 }) });
     appendLog('draft:start', r);
     if (r.status === 200 && typeof r.body === 'object' && (r.body as any).draftState) setDraftState((r.body as any).draftState);
   };

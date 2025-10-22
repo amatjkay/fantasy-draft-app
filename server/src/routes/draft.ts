@@ -16,7 +16,7 @@ const router = Router();
 const StartDraftSchema = z.object({
   roomId: z.string(),
   pickOrder: z.array(z.string().uuid()),
-  timerSec: z.number().int().positive().optional().default(30),
+  timerSec: z.number().int().positive().optional().default(60),
 });
 
 // List persisted rooms

@@ -84,7 +84,11 @@ const socketMemberships = new Map<string, Array<{ roomId: string; userId?: strin
 
 // Reconnect grace timers: roomId -> { userId, timeout }
 const reconnectTimers = new Map<string, { userId: string; timeout: NodeJS.Timeout }>();
-const GRACE_MS = 60 * 1000;
+function getGraceMs() {
+  const v = process.env.RECONNECT_GRACE_MS;
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 60 * 1000;
+}
 
 function broadcastPresence(roomId: string) {
   const users = Array.from(roomPresence.get(roomId) ?? []);
@@ -153,7 +157,7 @@ io.on('connection', (socket: Socket) => {
         const room = draftManager.getOrCreate({
           roomId,
           pickOrder,
-          timerSec: timerSec ?? 30,
+          timerSec: timerSec ?? 60,
           snakeDraft: true,
         });
         room.start();
@@ -318,7 +322,7 @@ io.on('connection', (socket: Socket) => {
     if (!lobby) return;
 
     // Create draft room
-    const timerSec = 30;
+    const timerSec = 60;
     const room = draftManager.getOrCreate({
       roomId,
       pickOrder,
@@ -470,7 +474,7 @@ io.on('connection', (socket: Socket) => {
           const state = room.getState();
           if (state.activeUserId === userId && !state.paused && !reconnectTimers.has(roomId)) {
             room.pause();
-            io.to(roomId).emit('draft:reconnect_wait', { roomId, userId, graceMs: GRACE_MS });
+            io.to(roomId).emit('draft:reconnect_wait', { roomId, userId, graceMs: getGraceMs() });
             const timeout = setTimeout(() => {
               reconnectTimers.delete(roomId);
               try {
@@ -499,7 +503,7 @@ io.on('connection', (socket: Socket) => {
                 console.error('[reconnect-grace] Autopick failed:', err?.message || err);
                 io.to(roomId).emit('draft:error', { message: `Autopick failed after reconnect grace: ${err?.message || err}` });
               }
-            }, GRACE_MS);
+            }, getGraceMs());
             reconnectTimers.set(roomId, { userId, timeout });
           }
         }
