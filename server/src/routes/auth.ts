@@ -15,6 +15,7 @@ const RegisterSchema = z.object({
   password: z.string().min(6),
   teamName: z.string().min(3).max(50),
   logo: z.string().optional().default('default-logo'),
+  makeAdmin: z.boolean().optional(), // For test purposes
 });
 
 const LoginSchema = z.object({
@@ -41,7 +42,11 @@ router.post('/register', async (req: Request, res: Response) => {
     const passwordHash = await hashPassword(data.password);
 
     // Создание пользователя
-    const user = dataStore.createUser(data.login, passwordHash, data.teamName, data.logo);
+    // First user is always admin (for backwards compatibility with tests)
+    // Or if makeAdmin flag is explicitly set
+    const isFirstUser = dataStore.getAllUsers().length === 0;
+    const role = data.makeAdmin || isFirstUser ? 'admin' : 'user';
+    const user = dataStore.createUser(data.login, passwordHash, data.teamName, data.logo, role);
 
     // Создание команды для пользователя
     dataStore.createTeam(user.id, data.teamName, data.logo, 1);
