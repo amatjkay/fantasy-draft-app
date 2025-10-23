@@ -300,7 +300,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
 
       {/* Notification - Center Top */}
       {notification && (
-        <div style={{
+        <div data-testid="notification" style={{
           position: 'fixed',
           top: '80px',
           left: '50%',
@@ -323,7 +323,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
 
       {/* Reconnect Banner - Center Top */}
       {reconnectInfo && !draftState?.completed && (
-        <div style={{
+        <div data-testid="reconnect-banner" style={{
           position: 'fixed',
           top: '125px',
           left: '50%',
@@ -355,7 +355,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
         alignItems: 'center',
         boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
       }}>
-        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+        <div data-testid="turn-status" style={{ fontSize: '18px', fontWeight: 'bold' }}>
           {isMyTurn ? '🎯 ВАШ ХОД' : `⏳ Ход: ${draftState?.activeUserId?.slice(0, 8) || '...'}`}
         </div>
         <div style={{ fontSize: '24px', fontWeight: 'bold' }}>

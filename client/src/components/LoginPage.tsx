@@ -47,32 +47,21 @@ export function LoginPage({ onLoginSuccess }: Props) {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #053950 0%, #072338 100%)',
-      padding: '20px',
-    }}>
-      <div className="card" style={{
-        padding: '40px',
-        width: '100%',
-        maxWidth: '400px',
-      }}>
-        <h1 style={{ textAlign: 'center', marginTop: 0, marginBottom: '8px', color: '#ffffff', fontWeight: '700', fontSize: '28px' }}>
+    <div className="page page-gradient">
+      <div className="card p-40 w-full max-w-400">
+        <h1 className="heading-xl text-center mb-8">
           Shadow Hockey Draft
         </h1>
-        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '14px', marginBottom: '24px' }}>
+        <p className="text-center subtitle mb-24">
           {isRegistering ? 'Создайте аккаунт' : 'Войдите в систему'}
         </p>
 
         {error && (
-          <div className="alert alert-danger" style={{ marginBottom: '16px' }}>{error}</div>
+          <div className="alert alert-danger mb-16">{error}</div>
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '16px' }}>
+          <div className="mb-16">
             <label className="label">
               Логин
             </label>
@@ -83,20 +72,10 @@ export function LoginPage({ onLoginSuccess }: Props) {
               required
               minLength={3}
               className="input"
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '2px solid #334155',
-                borderRadius: '6px',
-                fontSize: '14px',
-                boxSizing: 'border-box',
-                background: '#0a3d52',
-                color: '#ffffff',
-              }}
             />
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
+          <div className="mb-16">
             <label className="label">
               Пароль
             </label>
@@ -107,19 +86,11 @@ export function LoginPage({ onLoginSuccess }: Props) {
               required
               minLength={6}
               className="input"
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '2px solid #334155',
-                borderRadius: '6px',
-                fontSize: '14px',
-                boxSizing: 'border-box',
-              }}
             />
           </div>
 
           {isRegistering && (
-            <div style={{ marginBottom: '16px' }}>
+            <div className="mb-16">
               <label className="label">
                 Название команды (опционально)
               </label>
@@ -129,16 +100,6 @@ export function LoginPage({ onLoginSuccess }: Props) {
                 onChange={e => setTeamName(e.target.value)}
                 placeholder={`${login}'s Team`}
                 className="input"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid #334155',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  boxSizing: 'border-box',
-                  background: '#0a3d52',
-                  color: '#ffffff',
-                }}
               />
             </div>
           )}
@@ -146,25 +107,13 @@ export function LoginPage({ onLoginSuccess }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary"
-            style={{
-              width: '100%',
-              padding: '14px',
-              background: loading ? '#059669' : 'linear-gradient(135deg, #10b981, #059669)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1,
-            }}
+            className="btn btn-primary btn-block"
           >
             {loading ? 'Загрузка...' : isRegistering ? 'Зарегистрироваться' : 'Войти'}
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '14px' }}>
+        <div className="text-center mt-16">
           <button
             onClick={() => {
               setIsRegistering(!isRegistering);

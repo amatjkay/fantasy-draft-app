@@ -28,8 +28,7 @@ describe('Multi-position eligibility', () => {
       id: 'pC_LW', firstName: 'Dual', lastName: 'Forward', position: 'C', capHit: 2_000_000, team: 'TST',
       stats: { games: 82, goals: 20, assists: 30, points: 50 }, draftedBy: null, draftWeek: null,
     } as Player;
-    // @ts-expect-error – extend optional field for test
-    (pC_LW as any).eligiblePositions = ['C', 'LW'];
+    pC_LW.eligiblePositions = ['C', 'LW'];
 
     const pRWonly: Player = {
       id: 'pRW', firstName: 'Right', lastName: 'Wing', position: 'RW', capHit: 2_500_000, team: 'TST',

@@ -19,6 +19,57 @@ const StartDraftSchema = z.object({
   timerSec: z.number().int().positive().optional().default(60),
 });
 
+// ============================================================================
+// GET /api/draft/teams?roomId={id}
+// Returns teams for all participants in the draft room's pickOrder
+// ============================================================================
+
+router.get('/teams', requireAuth, (req: Request, res: Response) => {
+  try {
+    const roomId = req.query.roomId as string;
+    if (!roomId) {
+      return res.status(400).json({ error: 'roomId query parameter is required' });
+    }
+
+    const room = draftManager.get(roomId);
+    if (!room) {
+      return res.status(404).json({ error: 'Draft room not found' });
+    }
+
+    const state = room.getState();
+    const teams = state.pickOrder.map((uid) => {
+      const t = dataStore.getTeam(uid);
+      return t ? {
+        ownerId: uid,
+        name: t.name,
+        logo: t.logo,
+        salaryTotal: t.salaryTotal,
+        players: t.players,
+        slots: t.slots,
+      } : {
+        ownerId: uid,
+        name: `Team ${uid}`,
+        logo: 'default-logo',
+        salaryTotal: 0,
+        players: [],
+        slots: [
+          { position: 'LW', playerId: null },
+          { position: 'C', playerId: null },
+          { position: 'RW', playerId: null },
+          { position: 'D', playerId: null },
+          { position: 'D', playerId: null },
+          { position: 'G', playerId: null },
+        ],
+      };
+    });
+
+    return res.json({ roomId, teams });
+  } catch (err: any) {
+    console.error('[GET /draft/teams] Error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // List persisted rooms
 router.get('/rooms', requireAuth, (req, res) => {
   try {

@@ -1,5 +1,7 @@
 # Fantasy Draft App (NHL)
 
+[![CI](https://github.com/amatjkay/fantasy-draft-app/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/amatjkay/fantasy-draft-app/actions/workflows/ci.yml)
+
 Некоммерческое веб‑приложение для проведения fantasy-драфта по NHL с поддержкой real-time драфт-комнаты, базовых валидаторов состава и подготовкой к учёту salary cap.
 
 Статус: Backend MVP готов (REST API + Socket.IO, salary cap валидация, OpenAPI/Swagger, e2e тесты)
@@ -124,6 +126,61 @@ server/                    # Серверная часть (Express + Socket.IO)
   openapi.json             # OpenAPI-спецификация
   .env.sample              # Пример конфигурации окружения
 README.md
+```
+
+## Роли и права (RBAC)
+
+- Администратор лобби/глобальный админ может только организовывать драфт:
+  - Запуск драфта (lobby:start)
+  - Пауза/продолжение драфта (draft:pause / draft:resume) — только глобальный админ
+  - Добавление ботов (lobby:addBots)
+  - Исключение участников (lobby:kick)
+- Запрещено вмешательство в логику драфта: нет force-pick, нет undo.
+
+## Lobby Socket Events (RBAC)
+
+Клиент → Сервер:
+- `lobby:join` — `{ roomId, userId, login }`
+- `lobby:ready` — `{ roomId, userId, ready }`
+- `lobby:addBots` — `{ roomId, count }` (только админ лобби или глобальный админ)
+- `lobby:start` — `{ roomId, pickOrder }` (только админ лобби или глобальный админ)
+- `lobby:kick` — `{ roomId, userId }` (только админ лобби или глобальный админ)
+
+Сервер → Клиент:
+- `lobby:participants` — `{ participants, adminId }`
+- `lobby:ready` — `{ userId, ready }`
+- `lobby:start`
+- `lobby:error` — `{ message }`
+- `lobby:kicked` — `{ roomId }`
+
+## REST: All Teams (Draft Board)
+
+`GET /api/draft/teams?roomId={id}`
+
+Возвращает составы и слоты всех участников текущей комнаты в порядке `pickOrder`.
+
+Пример ответа:
+```json
+{
+  "roomId": "weekly-draft",
+  "teams": [
+    {
+      "ownerId": "user-123",
+      "name": "Team Alpha",
+      "logo": "alpha",
+      "salaryTotal": 25000000,
+      "players": ["player-1", "player-2"],
+      "slots": [
+        { "position": "LW", "playerId": null },
+        { "position": "C",  "playerId": "player-1" },
+        { "position": "RW", "playerId": null },
+        { "position": "D",  "playerId": "player-2" },
+        { "position": "D",  "playerId": null },
+        { "position": "G",  "playerId": null }
+      ]
+    }
+  ]
+}
 ```
 
 ## Дорожная карта (MVP → v1)

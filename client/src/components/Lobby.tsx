@@ -20,6 +20,8 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [myReady, setMyReady] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminId, setAdminId] = useState<string>('');
+  const [error, setError] = useState<string>('');
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -46,6 +48,7 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
       console.log('[Lobby] userId:', userId, 'adminId:', data.adminId, 'isAdmin:', data.adminId === userId);
       setParticipants(data.participants);
       setIsAdmin(data.adminId === userId);
+      setAdminId(data.adminId);
     });
 
     socket.on('lobby:ready', (data: { userId: string; ready: boolean }) => {
@@ -54,6 +57,18 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
 
     socket.on('lobby:start', () => {
       onStartDraft();
+    });
+
+    socket.on('lobby:error', (payload: { message: string }) => {
+      console.error('[Lobby] lobby:error', payload);
+      setError(payload.message || 'Ошибка лобби');
+      setTimeout(() => setError(''), 4000);
+    });
+
+    socket.on('lobby:kicked', ({ roomId: kickedRoomId }: { roomId: string }) => {
+      console.warn('[Lobby] You were kicked from lobby:', kickedRoomId);
+      alert('Вы были исключены из лобби администратором.');
+      onExit();
     });
 
     return () => {
@@ -69,6 +84,10 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
 
   const addBots = (count: number) => {
     socketRef.current?.emit('lobby:addBots', { roomId, count });
+  };
+
+  const kickUser = (targetUserId: string) => {
+    socketRef.current?.emit('lobby:kick', { roomId, userId: targetUserId });
   };
 
   const startDraft = () => {
@@ -102,10 +121,16 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
             <strong>🎮 Код комнаты:</strong> <span style={{ color: '#60a5fa' }}>{roomId}</span>
           </div>
           <div style={{ color: '#ffffff' }}>
-            <strong>👥 Участников:</strong> {participants.length}
+            <strong>👥 Участников:</strong> <span data-testid="participants-count">{participants.length}</span>
             {allReady && <span style={{ marginLeft: '8px', color: '#10b981', fontWeight: 'bold' }}>✓ Все готовы</span>}
+            {/* e2e helper flag */}
+            <span data-testid="is-admin-flag" style={{ display: 'none' }}>{isAdmin ? '1' : '0'}</span>
           </div>
         </div>
+
+        {error && (
+          <div className="alert alert-danger" style={{ marginBottom: '16px' }}>{error}</div>
+        )}
 
         <h2 style={{ fontSize: '18px', marginBottom: '16px', color: '#ffffff', fontWeight: '700' }}>Участники</h2>
         
@@ -142,15 +167,26 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
                   </div>
                   <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>{p.teamName}</div>
                 </div>
-                <div style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  background: p.ready ? '#10b981' : '#475569',
-                  color: 'white',
-                }}>
-                  {p.ready ? '✓ Готов' : 'Не готов'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    background: p.ready ? '#10b981' : '#475569',
+                    color: 'white',
+                  }}>
+                    {p.ready ? '✓ Готов' : 'Не готов'}
+                  </div>
+                  {isAdmin && p.userId !== adminId && !p.userId.startsWith('bot-') && (
+                    <button
+                      onClick={() => kickUser(p.userId)}
+                      className="btn btn-secondary"
+                      title={`Исключить ${p.login}`}
+                    >
+                      ⛔ Исключить
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -166,19 +202,19 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
             )}
 
             {isAdmin && (
-              <button onClick={startDraft} disabled={!canStart} className="btn btn-primary" style={{ flex: 1 }}>
+              <button data-testid="start-draft-btn" onClick={startDraft} disabled={!canStart} className="btn btn-primary" style={{ flex: 1 }}>
                 {canStart ? '🏒 Начать драфт' : `Нужно минимум 2 участника (${participants.length}/2)`}
               </button>
             )}
           </div>
 
           {isAdmin && (
-            <button onClick={() => addBots(3)} className="btn btn-secondary">🤖 Добавить 3 ботов (для тестирования)</button>
+            <button data-testid="add-bots-btn" onClick={() => addBots(3)} className="btn btn-secondary">🤖 Добавить 3 ботов (для тестирования)</button>
           )}
         </div>
 
         {isAdmin && (
-          <div className="alert alert-info" style={{ marginTop: '16px' }}>
+          <div data-testid="admin-banner" className="alert alert-info" style={{ marginTop: '16px' }}>
             🔑 Вы администратор. Можете запустить драфт когда все будут готовы.
           </div>
         )}

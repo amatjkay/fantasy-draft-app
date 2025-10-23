@@ -90,6 +90,23 @@ function getGraceMs() {
   return Number.isFinite(n) && n > 0 ? n : 60 * 1000;
 }
 
+function isGlobalAdmin(userId?: string): boolean {
+  if (!userId) return false;
+  try {
+    const u = dataStore.getUser(userId);
+    return (u?.role === 'admin');
+  } catch {
+    return false;
+  }
+}
+
+function isLobbyAdminOrGlobal(roomId: string, userId?: string): boolean {
+  if (!userId) return false;
+  if (isGlobalAdmin(userId)) return true;
+  const lobby = lobbyManager.getLobby(roomId);
+  return lobby?.adminId === userId;
+}
+
 function broadcastPresence(roomId: string) {
   const users = Array.from(roomPresence.get(roomId) ?? []);
   io.to(roomId).emit('draft:presence', { roomId, users, count: users.length });
@@ -254,6 +271,11 @@ io.on('connection', (socket: Socket) => {
   // Пауза/резюм
   socket.on('draft:pause', ({ roomId }: { roomId: string }) => {
     try {
+      const sessUserId = (socket.request as any)?.session?.userId as string | undefined;
+      if (!isGlobalAdmin(sessUserId)) {
+        socket.emit('draft:error', { message: 'Only admin can pause the draft' });
+        return;
+      }
       const room = draftManager.get(roomId);
       if (!room) throw new Error('Room not found');
       room.pause();
@@ -264,6 +286,11 @@ io.on('connection', (socket: Socket) => {
   });
   socket.on('draft:resume', ({ roomId }: { roomId: string }) => {
     try {
+      const sessUserId = (socket.request as any)?.session?.userId as string | undefined;
+      if (!isGlobalAdmin(sessUserId)) {
+        socket.emit('draft:error', { message: 'Only admin can resume the draft' });
+        return;
+      }
       const room = draftManager.get(roomId);
       if (!room) throw new Error('Room not found');
       room.resume();
@@ -305,6 +332,11 @@ io.on('connection', (socket: Socket) => {
   socket.on('lobby:addBots', (data: { roomId: string; count: number }) => {
     const { roomId, count } = data;
     console.log('[Socket lobby:addBots] Received:', { roomId, count });
+    const sessUserId = (socket.request as any)?.session?.userId as string | undefined;
+    if (!isLobbyAdminOrGlobal(roomId, sessUserId)) {
+      socket.emit('lobby:error', { message: 'Only admin can add bots' });
+      return;
+    }
     lobbyManager.addBots(roomId, Math.min(count, 9), dataStore); // Max 9 bots
     const participants = lobbyManager.getParticipantsList(roomId);
     const lobby = lobbyManager.getLobby(roomId);
@@ -320,6 +352,25 @@ io.on('connection', (socket: Socket) => {
     const { roomId, pickOrder } = data;
     const lobby = lobbyManager.getLobby(roomId);
     if (!lobby) return;
+    const sessUserId = (socket.request as any)?.session?.userId as string | undefined;
+    if (!isLobbyAdminOrGlobal(roomId, sessUserId)) {
+      socket.emit('lobby:error', { message: 'Only admin can start the draft' });
+      return;
+    }
+
+    // Ensure teams exist for all participants (needed for picks/autopick)
+    try {
+      pickOrder.forEach((userId) => {
+        if (!dataStore.getTeam(userId)) {
+          const user = dataStore.getUser(userId);
+          const teamName = user ? user.teamName : `Team ${userId}`;
+          const logo = user ? user.logo : 'default-logo';
+          dataStore.createTeam(userId, teamName, logo, 1);
+        }
+      });
+    } catch (e) {
+      console.warn('[lobby:start] Failed to ensure teams exist:', e);
+    }
 
     // Create draft room
     const timerSec = 60;
@@ -367,6 +418,37 @@ io.on('connection', (socket: Socket) => {
     
     // Clear lobby
     lobbyManager.clearLobby(roomId);
+  });
+
+  // Kick participant (admin only)
+  socket.on('lobby:kick', (data: { roomId: string; userId: string }) => {
+    try {
+      const { roomId, userId } = data;
+      const sessUserId = (socket.request as any)?.session?.userId as string | undefined;
+      if (!isLobbyAdminOrGlobal(roomId, sessUserId)) {
+        socket.emit('lobby:error', { message: 'Only admin can kick participants' });
+        return;
+      }
+      const lobby = lobbyManager.getLobby(roomId);
+      if (!lobby) {
+        socket.emit('lobby:error', { message: 'Lobby not found' });
+        return;
+      }
+      const target = lobby.participants.get(userId);
+      lobbyManager.removeParticipant(roomId, userId);
+      // Notify all about new participants list
+      const participants = lobbyManager.getParticipantsList(roomId);
+      io.to(`lobby:${roomId}`).emit('lobby:participants', {
+        participants,
+        adminId: lobby.adminId,
+      });
+      // Notify kicked user if online
+      if (target?.socketId) {
+        io.to(target.socketId).emit('lobby:kicked', { roomId });
+      }
+    } catch (err: any) {
+      socket.emit('lobby:error', { message: err?.message || 'lobby:kick failed' });
+    }
   });
 
   // ============================================================================
@@ -478,6 +560,8 @@ io.on('connection', (socket: Socket) => {
             const timeout = setTimeout(() => {
               reconnectTimers.delete(roomId);
               try {
+                // Resume draft if still paused before autopick
+                try { room.resume(); } catch {}
                 const players = dataStore.getPlayersMap();
                 const teams = dataStore.getTeamsMap();
                 const newState = room.makeAutoPick(userId, players, teams);

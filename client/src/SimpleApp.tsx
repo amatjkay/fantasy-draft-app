@@ -4,8 +4,9 @@ import { Lobby } from './components/Lobby';
 import { DraftRoom } from './components/DraftRoom';
 import { AdminPanel } from './components/AdminPanel';
 import TeamView from './components/TeamView';
+import AllTeams from './components/AllTeams';
 
-type View = 'login' | 'lobby' | 'draft' | 'admin' | 'team';
+type View = 'login' | 'lobby' | 'draft' | 'admin' | 'team' | 'allteams';
 
 export function SimpleApp() {
   const [view, setView] = useState<View>('login');
@@ -13,6 +14,14 @@ export function SimpleApp() {
   const [userLogin, setUserLogin] = useState<string>('');
   const [userRole, setUserRole] = useState<'user' | 'admin'>('user');
   const [roomId, setRoomId] = useState<string>('');
+  const getRoomIdFromUrl = () => {
+    try {
+      const url = new URL(window.location.href);
+      return url.searchParams.get('roomId') || 'weekly-draft';
+    } catch {
+      return 'weekly-draft';
+    }
+  };
 
   // Check if already logged in and if there's an active draft
   useEffect(() => {
@@ -37,7 +46,8 @@ export function SimpleApp() {
             setView('draft'); // Go directly to draft
           } else {
             console.log('[SimpleApp] No active draft, going to lobby');
-            setRoomId('weekly-draft');
+            const rid = getRoomIdFromUrl();
+            setRoomId(rid);
             setView('lobby');
           }
         }
@@ -55,8 +65,9 @@ export function SimpleApp() {
     setUserLogin(login);
     setUserRole(role || 'user');
     
-    // Fixed room for weekly draft - all users join the same room
-    setRoomId('weekly-draft');
+    // Prefer roomId from URL if provided, fallback to weekly-draft
+    const rid = getRoomIdFromUrl();
+    setRoomId(rid);
     setView('lobby');
   };
 
@@ -78,6 +89,9 @@ export function SimpleApp() {
   const handleExitDraft = () => {
     setView('lobby');
   };
+
+  const openAllTeams = () => setView('allteams');
+  const backFromAllTeams = () => setView('lobby');
 
   if (view === 'login') {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
@@ -112,6 +126,14 @@ export function SimpleApp() {
             </button>
           </div>
         )}
+        <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 999 }}>
+          <button
+            onClick={openAllTeams}
+            className="btn btn-secondary"
+          >
+            📋 Все команды
+          </button>
+        </div>
         <Lobby
           roomId={roomId}
           userId={userId}
@@ -136,6 +158,10 @@ export function SimpleApp() {
 
   if (view === 'team') {
     return <TeamView />;
+  }
+
+  if (view === 'allteams' && roomId) {
+    return <AllTeams roomId={roomId} onBack={backFromAllTeams} />;
   }
 
   return <div>Loading...</div>;

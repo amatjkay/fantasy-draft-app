@@ -172,6 +172,24 @@ Response: { "players": [...] }
 ### GET /leaderboard?week={week}
 ```json
 Response: { "leaderboard": [...] }
+
+### GET /draft/teams?roomId={id}
+```json
+Response: {
+  "roomId": "string",
+  "teams": [
+    {
+      "ownerId": "string",
+      "name": "string",
+      "logo": "string",
+      "salaryTotal": 0,
+      "players": ["player_id"],
+      "slots": [ { "position": "LW|C|RW|D|G", "playerId": "string | null" } ]
+    }
+  ]
+}
+Auth: Required
+```
 ```
 
 ---
@@ -185,6 +203,13 @@ Response: { "leaderboard": [...] }
 - `draft:pick` — `{roomId, userId, playerId}`
 - `draft:pause` / `draft:resume` — `{roomId}`
 
+Лобби (Lobby):
+- `lobby:join` — `{roomId, userId, login}`
+- `lobby:ready` — `{roomId, userId, ready}`
+- `lobby:addBots` — `{roomId, count}` (admin only)
+- `lobby:start` — `{roomId, pickOrder}` (admin only)
+- `lobby:kick` — `{roomId, userId}` (admin only)
+
 ### Сервер → Клиент
 
 - `connected` — `{ok: true}`
@@ -192,6 +217,13 @@ Response: { "leaderboard": [...] }
 - `draft:timer` — `{roomId, timerRemainingMs, activeUserId}` (каждую секунду)
 - `draft:autopick` — `{roomId, pickIndex, pick}`
 - `draft:error` — `{message}`
+
+Лобби (Lobby):
+- `lobby:participants` — `{participants, adminId}`
+- `lobby:ready` — `{userId, ready}`
+- `lobby:start`
+- `lobby:error` — `{message}`
+- `lobby:kicked` — `{roomId}`
 
 ---
 
@@ -391,6 +423,11 @@ import bcrypt from 'bcrypt';
 const hashPassword = (password: string) => bcrypt.hash(password, 10);
 const verifyPassword = (password: string, hash: string) => bcrypt.compare(password, hash);
 ```
+
+### Авторизация и сессии
+В дев-режиме используется cookie-сессия (express-session), общий middleware применяется и для Socket.IO — userId берётся из сессии. Проверка ролей (RBAC) выполняется на сервере для всех админ‑методов (draft:pause/resume — только глобальный админ; lobby:addBots/start/kick — админ лобби или глобальный админ). Вмешательство в логику драфта (force-pick/undo) не поддерживается по требованиям.
+
+JWT может быть применён в будущем, пример ниже приведён как альтернатива.
 
 ### JWT для авторизации
 ```typescript

@@ -14,21 +14,30 @@ export default defineConfig({
       command: 'npm run dev',
       cwd: 'server',
       port: 3001,
-      reuseExistingServer: true,
-      timeout: 60_000,
+      env: { RECONNECT_GRACE_MS: '1000' },
+      reuseExistingServer: false,
+      timeout: 120_000,
     },
     {
       command: 'npm run dev',
       cwd: 'client',
       port: 5173,
-      reuseExistingServer: true,
-      timeout: 60_000,
+      reuseExistingServer: false,
+      timeout: 120_000,
     },
   ],
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
     },
   ],
 });

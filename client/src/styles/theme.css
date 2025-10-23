@@ -185,3 +185,18 @@
   color: var(--color-text-inverse);
   border-color: var(--color-info);
 }
+
+/* Utilities */
+.page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.page-gradient { background: linear-gradient(135deg, #053950 0%, #072338 100%); }
+.text-center { text-align: center; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-24 { margin-bottom: 24px; }
+.mt-16 { margin-top: 16px; }
+.p-40 { padding: 40px; }
+.w-full { width: 100%; }
+.max-w-400 { max-width: 400px; }
+.btn-block { width: 100%; padding-top: 14px; padding-bottom: 14px; }
+.heading-xl { margin: 0; color: var(--color-text-inverse); font-weight: 700; font-size: 28px; }
+.subtitle { color: var(--color-text-secondary); font-size: 14px; }
