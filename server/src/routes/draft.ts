@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { draftManager } from '../draftManager';
 import { dataStore } from '../dataStore';
-import { requireAuth } from '../auth';
+import { requireAuth, requireAdmin } from '../auth';
 import { emitDraftState } from '../ioBus';
 import { getDraftRepository } from '../persistence/repository';
 import type { DraftPickRecord, DraftRoomRecord } from '../persistence/types';
@@ -99,6 +99,10 @@ router.get('/history', requireAuth, (req, res) => {
 const PickSchema = z.object({
   roomId: z.string(),
   playerId: z.string(),
+});
+
+const RoomActionSchema = z.object({
+  roomId: z.string(),
 });
 
 // ============================================================================
@@ -253,6 +257,58 @@ router.post('/pick', requireAuth, async (req: Request, res: Response) => {
     }
 
     console.error('[POST /draft/pick] Error:', err);
+    return res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// POST /api/draft/pause (Admin only)
+// ============================================================================
+router.post('/pause', requireAuth, requireAdmin, (req: Request, res: Response) => {
+  try {
+    const { roomId } = RoomActionSchema.parse(req.body);
+    const room = draftManager.get(roomId);
+
+    if (!room) {
+      return res.status(404).json({ error: 'Draft room not found' });
+    }
+
+    room.pause();
+    const newState = room.getState();
+    emitDraftState(roomId, newState);
+
+    res.json({ message: 'Draft paused successfully', draftState: newState });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: err.errors });
+    }
+    console.error('[POST /draft/pause] Error:', err);
+    return res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// POST /api/draft/resume (Admin only)
+// ============================================================================
+router.post('/resume', requireAuth, requireAdmin, (req: Request, res: Response) => {
+  try {
+    const { roomId } = RoomActionSchema.parse(req.body);
+    const room = draftManager.get(roomId);
+
+    if (!room) {
+      return res.status(404).json({ error: 'Draft room not found' });
+    }
+
+    room.resume();
+    const newState = room.getState();
+    emitDraftState(roomId, newState);
+
+    res.json({ message: 'Draft resumed successfully', draftState: newState });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: err.errors });
+    }
+    console.error('[POST /draft/resume] Error:', err);
     return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });

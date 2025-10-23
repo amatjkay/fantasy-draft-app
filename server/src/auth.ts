@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { Request, Response, NextFunction } from 'express';
+import { dataStore } from './dataStore';
 
 const SALT_ROUNDS = 10;
 
@@ -30,6 +31,20 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  next();
+}
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const userId = req.session.userId;
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const user = dataStore.getUser(userId);
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden: Admins only' });
+  }
+
   next();
 }
 
