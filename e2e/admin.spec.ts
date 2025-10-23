@@ -32,15 +32,15 @@ test.describe('Admin Actions', () => {
     const adminData = await adminRes.json();
     adminId = adminData.userId;
 
-    // Log in the admin to establish a session
-    await adminPage.goto('/');
+    // Log in the admin to establish a session (with roomId in URL)
+    await adminPage.goto(`/?roomId=${roomId}`);
     await adminPage.locator('input[type="text"]').fill(adminLogin);
     await adminPage.locator('input[type="password"]').fill('password');
     await adminPage.getByRole('button', { name: 'Войти' }).click();
     await expect(adminPage.getByRole('heading', { name: 'Лобби драфта' })).toBeVisible();
 
-    // Register user via UI
-    await userPage.goto('/');
+    // Register user via UI (with roomId in URL)
+    await userPage.goto(`/?roomId=${roomId}`);
     await userPage.getByRole('button', { name: 'Нет аккаунта? Зарегистрироваться' }).click();
     await userPage.locator('input[type="text"]').first().fill(`user-${rnd}`);
     await userPage.locator('input[type="password"]').fill('password');
@@ -49,9 +49,7 @@ test.describe('Admin Actions', () => {
     await expect(userPage.getByRole('heading', { name: 'Лобби драфта' })).toBeVisible();
     userId = await userPage.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}').id);
     
-    // Admin starts the draft
-    await adminPage.goto(`/?roomId=${roomId}`);
-    await userPage.goto(`/?roomId=${roomId}`);
+    // Both users should now be in the correct room
     await expect(adminPage.getByTestId('participants-count')).toContainText('2');
     await adminPage.getByRole('button', { name: /Начать драфт/ }).click();
     await expect(adminPage.getByRole('heading', { name: 'Fantasy Draft' })).toBeVisible();
