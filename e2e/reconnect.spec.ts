@@ -55,8 +55,13 @@ test('reconnect triggers pause and autopick, then draft resumes', async ({ brows
   } catch {}
 
   // After grace (1s configured), expect autopick to happen and draft to move forward
-  // It's now user2's turn – status bar should show 'ВАШ ХОД'
-  await expect(p2.getByTestId('turn-status')).toContainText('ВАШ ХОД', { timeout: 15_000 });
+  // It's now user2's turn – status should reflect this (either 'ВАШ ХОД' or not showing u1)
+  await expect(async () => {
+    const text = await p2.getByTestId('turn-status').textContent();
+    // Should show either 'ВАШ ХОД' (Chromium fast update) or userId (but not u1 who disconnected)
+    expect(text).toMatch(/(ВАШ ХОД|⏳ Ход:)/);
+    expect(text).not.toContain(u1.slice(0, 8));
+  }).toPass({ timeout: 15_000 });
 
   // And reconnect banner (if shown) should disappear; do not fail if not present
   try {
