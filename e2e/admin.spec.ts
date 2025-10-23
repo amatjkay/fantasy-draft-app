@@ -4,6 +4,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Admin Actions', () => {
   let adminContext: any;
   let userContext: any;
+  let adminPage: any;
+  let userPage: any;
   let roomId: string;
   let adminId: string;
   let userId: string;
@@ -15,8 +17,8 @@ test.describe('Admin Actions', () => {
     // Create contexts
     adminContext = await browser.newContext();
     userContext = await browser.newContext();
-    const adminPage = await adminContext.newPage();
-    const userPage = await userContext.newPage();
+    adminPage = await adminContext.newPage();
+    userPage = await userContext.newPage();
 
     // Register admin via UI (with roomId in URL)
     // First user will automatically be admin thanks to auth.ts logic
@@ -47,13 +49,13 @@ test.describe('Admin Actions', () => {
 
   test('admin can pause and resume the draft', async () => {
     // Pause
-    const pauseRes = await adminContext.request.post('/api/draft/pause', { data: { roomId } });
+    const pauseRes = await adminPage.request.post('/api/draft/pause', { data: { roomId } });
     expect(pauseRes.ok()).toBeTruthy();
     let state = (await pauseRes.json()).draftState;
     expect(state.paused).toBe(true);
 
     // Resume
-    const resumeRes = await adminContext.request.post('/api/draft/resume', { data: { roomId } });
+    const resumeRes = await adminPage.request.post('/api/draft/resume', { data: { roomId } });
     expect(resumeRes.ok()).toBeTruthy();
     state = (await resumeRes.json()).draftState;
     expect(state.paused).toBe(false);
@@ -61,11 +63,11 @@ test.describe('Admin Actions', () => {
 
   test('non-admin cannot pause or resume the draft', async () => {
     // Attempt to pause
-    const pauseRes = await userContext.request.post('/api/draft/pause', { data: { roomId } });
+    const pauseRes = await userPage.request.post('/api/draft/pause', { data: { roomId } });
     expect(pauseRes.status()).toBe(403);
 
     // Attempt to resume
-    const resumeRes = await userContext.request.post('/api/draft/resume', { data: { roomId } });
+    const resumeRes = await userPage.request.post('/api/draft/resume', { data: { roomId } });
     expect(resumeRes.status()).toBe(403);
   });
 });
