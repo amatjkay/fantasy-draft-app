@@ -18,28 +18,18 @@ test.describe('Admin Actions', () => {
     const adminPage = await adminContext.newPage();
     const userPage = await userContext.newPage();
 
-    // Register admin via API for reliability
-    const adminLogin = `admin-${rnd}`;
-    const adminRes = await adminContext.request.post('/api/auth/register', {
-      data: {
-        login: adminLogin,
-        password: 'password',
-        teamName: 'Admin Team',
-        makeAdmin: true,
-      },
-    });
-    expect(adminRes.ok()).toBeTruthy();
-    const adminData = await adminRes.json();
-    adminId = adminData.userId;
-
-    // Log in the admin to establish a session (with roomId in URL)
+    // Register admin via UI (with roomId in URL)
+    // First user will automatically be admin thanks to auth.ts logic
     await adminPage.goto(`/?roomId=${roomId}`);
-    await adminPage.locator('input[type="text"]').fill(adminLogin);
+    await adminPage.getByRole('button', { name: 'Нет аккаунта? Зарегистрироваться' }).click();
+    await adminPage.locator('input[type="text"]').first().fill(`admin-${rnd}`);
     await adminPage.locator('input[type="password"]').fill('password');
-    await adminPage.getByRole('button', { name: 'Войти' }).click();
+    await adminPage.locator('input[type="text"]').nth(1).fill('Admin Team');
+    await adminPage.getByRole('button', { name: 'Зарегистрироваться' }).click();
     await expect(adminPage.getByRole('heading', { name: 'Лобби драфта' })).toBeVisible();
+    adminId = await adminPage.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}').id);
 
-    // Register user via UI (with roomId in URL)
+    // Register second user via UI (with roomId in URL)
     await userPage.goto(`/?roomId=${roomId}`);
     await userPage.getByRole('button', { name: 'Нет аккаунта? Зарегистрироваться' }).click();
     await userPage.locator('input[type="text"]').first().fill(`user-${rnd}`);
