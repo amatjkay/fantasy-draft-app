@@ -49,13 +49,19 @@ test.describe('Admin Actions', () => {
 
   test('admin can pause and resume the draft', async () => {
     // Pause
-    const pauseRes = await adminPage.request.post('/api/draft/pause', { data: { roomId } });
+    const pauseRes = await adminPage.request.post('/api/draft/pause', { 
+      data: { roomId },
+      headers: { 'Content-Type': 'application/json' }
+    });
     expect(pauseRes.ok()).toBeTruthy();
     let state = (await pauseRes.json()).draftState;
     expect(state.paused).toBe(true);
 
     // Resume
-    const resumeRes = await adminPage.request.post('/api/draft/resume', { data: { roomId } });
+    const resumeRes = await adminPage.request.post('/api/draft/resume', { 
+      data: { roomId },
+      headers: { 'Content-Type': 'application/json' }
+    });
     expect(resumeRes.ok()).toBeTruthy();
     state = (await resumeRes.json()).draftState;
     expect(state.paused).toBe(false);
@@ -63,11 +69,17 @@ test.describe('Admin Actions', () => {
 
   test('non-admin cannot pause or resume the draft', async () => {
     // Attempt to pause
-    const pauseRes = await userPage.request.post('/api/draft/pause', { data: { roomId } });
+    const pauseRes = await userPage.request.post('/api/draft/pause', { 
+      data: { roomId },
+      headers: { 'Content-Type': 'application/json' }
+    });
     expect(pauseRes.status()).toBe(403);
 
     // Attempt to resume
-    const resumeRes = await userPage.request.post('/api/draft/resume', { data: { roomId } });
+    const resumeRes = await userPage.request.post('/api/draft/resume', { 
+      data: { roomId },
+      headers: { 'Content-Type': 'application/json' }
+    });
     expect(resumeRes.status()).toBe(403);
   });
 });
