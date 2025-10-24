@@ -63,7 +63,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
 
     socket.on('draft:state', (state: DraftState) => {
       console.log('[DraftRoom] Received draft:state:', state);
-      setDraftState(state);
+
       // Clear reconnect banner when draft resumes
       if (!state.paused) {
         setReconnectInfo(null);
@@ -79,9 +79,12 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
         }, 5000);
       }
       
-      if (state.activeUserId === userId) {
-        showNotification('Ваш ход!');
-      }
+      setDraftState(prev => {
+        if (state.activeUserId === userId && prev?.activeUserId !== userId) {
+          showNotification('Ваш ход!');
+        }
+        return state;
+      });
       // Reload players and team on state change
       loadPlayers();
       loadMyTeam();

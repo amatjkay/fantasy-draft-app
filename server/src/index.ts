@@ -352,6 +352,14 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('lobby:start', (data: { roomId: string; pickOrder: string[] }) => {
     const { roomId, pickOrder } = data;
+
+    // Shuffle the pick order for randomness (Fisher-Yates shuffle)
+    for (let i = pickOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pickOrder[i], pickOrder[j]] = [pickOrder[j], pickOrder[i]];
+    }
+    console.log(`[lobby:start] Shuffled pick order for room ${roomId}:`, pickOrder);
+
     const lobby = lobbyManager.getLobby(roomId);
     if (!lobby) return;
     const sessUserId = (socket.request as any)?.session?.userId as string | undefined;
@@ -360,63 +368,71 @@ io.on('connection', (socket: Socket) => {
       return;
     }
 
-    // Ensure teams exist for all participants (needed for picks/autopick)
-    try {
-      pickOrder.forEach((userId) => {
-        if (!dataStore.getTeam(userId)) {
-          const user = dataStore.getUser(userId);
-          const teamName = user ? user.teamName : `Team ${userId}`;
-          const logo = user ? user.logo : 'default-logo';
-          dataStore.createTeam(userId, teamName, logo, 1);
-        }
-      });
-    } catch (e) {
-      console.warn('[lobby:start] Failed to ensure teams exist:', e);
-    }
+    // Announce that draft is starting soon
+    const countdownSeconds = 10;
+    io.to(`lobby:${roomId}`).emit('draft:starting', { countdown: countdownSeconds });
 
-    // Create draft room
-    const timerSec = 60;
-    const room = draftManager.getOrCreate({
-      roomId,
-      pickOrder,
-      timerSec,
-      snakeDraft: true,
-    });
-    
-    // Save to persistence
-    try {
-      const repo = getDraftRepository();
-      const roomRecord: DraftRoomRecord = {
+    // Wait for countdown before starting
+    setTimeout(() => {
+      // Ensure teams exist for all participants (needed for picks/autopick)
+      try {
+        pickOrder.forEach((userId) => {
+          if (!dataStore.getTeam(userId)) {
+            const user = dataStore.getUser(userId);
+            const teamName = user ? user.teamName : `Team ${userId}`;
+            const logo = user ? user.logo : 'default-logo';
+            dataStore.createTeam(userId, teamName, logo, 1);
+          }
+        });
+      } catch (e) {
+        console.warn('[lobby:start] Failed to ensure teams exist:', e);
+      }
+
+      // Create draft room
+      const timerSec = 60;
+      const room = draftManager.getOrCreate({
         roomId,
+        pickOrder,
         timerSec,
         snakeDraft: true,
-        createdAt: Date.now(),
-        pickOrder,
-      };
-      repo.saveRoom(roomRecord);
-    } catch (e) {
-      // best-effort
-    }
+      });
+      
+      // Save to persistence
+      try {
+        const repo = getDraftRepository();
+        const roomRecord: DraftRoomRecord = {
+          roomId,
+          timerSec,
+          snakeDraft: true,
+          createdAt: Date.now(),
+          pickOrder,
+        };
+        repo.saveRoom(roomRecord);
+      } catch (e) {
+        // best-effort
+      }
 
-    room.start();
-    const newState = room.getState();
-    logger.draft.started(roomId, pickOrder, timerSec);
-    
-    // Notify lobby participants
-    io.to(`lobby:${roomId}`).emit('lobby:start');
-    
-    // Emit initial state to draft room
-    io.to(roomId).emit('draft:state', newState);
-    
-    // Start timer
-    timerManager.start();
-    
-    // Check if first turn is a bot
-    if (newState.activeUserId?.startsWith('bot-')) {
-      setTimeout(() => {
-        makeBotPick(roomId, newState.activeUserId!);
-      }, 2000);
-    }
+      room.start();
+      const newState = room.getState();
+      logger.draft.started(roomId, pickOrder, timerSec);
+      
+      // Notify lobby participants that the draft has officially started
+      io.to(`lobby:${roomId}`).emit('lobby:start');
+
+      // Emit initial state to the draft room
+      io.to(roomId).emit('draft:state', newState);
+
+      // The global timerManager will pick up the new active turn
+      // Check if first turn is a bot
+      if (newState.activeUserId?.startsWith('bot-')) {
+        setTimeout(() => {
+          makeBotPick(roomId, newState.activeUserId!);
+        }, 2000);
+      }
+
+      // Finally, clear the lobby
+      lobbyManager.clearLobby(roomId);
+    }, countdownSeconds * 1000);
     
     // Clear lobby
     lobbyManager.clearLobby(roomId);

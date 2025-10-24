@@ -22,6 +22,7 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminId, setAdminId] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [countdown, setCountdown] = useState<number | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -71,6 +72,18 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
       onExit();
     });
 
+    socket.on('draft:starting', ({ countdown: serverCountdown }) => {
+      setCountdown(serverCountdown);
+      let remaining = serverCountdown;
+      const interval = setInterval(() => {
+        remaining -= 1;
+        setCountdown(remaining);
+        if (remaining <= 0) {
+          clearInterval(interval);
+        }
+      }, 1000);
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -97,6 +110,15 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
 
   const allReady = participants.length > 0 && participants.every(p => p.ready);
   const canStart = isAdmin && participants.length >= 2;
+
+  if (countdown !== null && countdown > 0) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
+        <h1 className="text-5xl font-bold">Драфт начинается через...</h1>
+        <p className="text-9xl font-mono mt-4">{countdown}</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{
