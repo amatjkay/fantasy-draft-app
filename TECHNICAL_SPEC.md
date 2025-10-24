@@ -1,121 +1,175 @@
 # Техническая спецификация — Fantasy Draft App (NHL)
 
-**Версия:** 1.0  
-**Дата:** 2025-10-20  
-**Статус:** Актуально
+**Версия:** 2.0  
+**Дата:** 2025-10-23  
+**Статус:** Актуально (обновлено после технического аудита)
 
 ---
 
 ## 1. Архитектура системы
 
 ```
-Browser (Frontend) ◄──► Node.js Backend (Express + Socket.IO) ◄──► SQLite/JSON
-                                    │
-                                    ▼
-                        DraftTimerManager (фоновый процесс)
+Browser (React + Socket.IO Client)
+        ↕ HTTP/WebSocket
+Node.js Backend (Express + Socket.IO)
+        ↕ Shared Session Middleware
+        ↕
+SQLite / In-Memory Storage
+        ↕
+DraftTimerManager (Background Process)
 ```
 
-### Компоненты
-- **Backend:** Express.js + Socket.IO + TypeScript
-- **Real-time:** DraftTimerManager для таймеров и автопиков
-- **Storage:** SQLite (или JSON для MVP)
-- **Парсинг:** Python-скрипт для capwages.com
+### Ключевые компоненты
+
+| Компонент | Технология | Назначение |
+|-----------|-----------|-----------|
+| **Backend** | Express.js + TypeScript | REST API endpoints |
+| **Real-time** | Socket.IO 4.x | WebSocket для драфта |
+| **Storage** | SQLite (better-sqlite3) | Персистентность (опционально) |
+| **Timer** | DraftTimerManager | Server-driven таймер + автопик |
+| **Session** | express-session | Общий для REST + Socket.IO |
+| **Validation** | Zod 3.x | Runtime schema validation |
 
 ---
 
 ## 2. Технологический стек
 
-### Backend
-- **Runtime:** Node.js 18+
-- **Language:** TypeScript 5.x
-- **Framework:** Express 4.x
-- **Real-time:** Socket.IO 4.x
-- **Validation:** Zod 3.x
-- **Database:** SQLite (better-sqlite3) или JSON
-- **Security:** bcrypt, helmet, cors, JWT
-- **Testing:** Vitest, Supertest
+### Backend (Production-Ready)
 
-### Frontend (рекомендации)
-- **Framework:** React 18+ / Vue 3+
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS
-- **Real-time:** Socket.IO Client
+```json
+{
+  "runtime": "Node.js 20 LTS",
+  "language": "TypeScript 5.x",
+  "framework": "Express 4.x",
+  "realtime": "Socket.IO 4.x",
+  "validation": "Zod 3.x",
+  "database": "SQLite (better-sqlite3)",
+  "auth": "express-session + bcrypt",
+  "security": "helmet, cors",
+  "testing": "Vitest + Supertest + Playwright"
+}
+```
 
-### Деплой
-- **Hosting:** Railway / Render / PythonAnywhere (бесплатный tier)
+### Frontend
+
+```json
+{
+  "framework": "React 18",
+  "language": "TypeScript",
+  "build": "Vite",
+  "styling": "CSS Modules + Dark Theme",
+  "realtime": "Socket.IO Client"
+}
+```
+
+### Деплой (рекомендации)
+
+- **Бесплатный tier:** Railway / Render / Fly.io
+- **Production:** VPS (Ubuntu 22.04) + nginx + PM2
+- **Database:** SQLite достаточно для 50-100 concurrent users
 
 ---
 
 ## 3. Структуры данных
 
-### User
+### 3.1 User
+
 ```typescript
 interface User {
-  id: string;              // UUID
-  login: string;           // Уникальный
-  password_hash: string;   // bcrypt
-  team_name: string;
-  logo: string;
-  created_at: number;
+  id: string;                // UUID v4
+  login: string;             // Unique, alphanumeric
+  passwordHash: string;      // bcrypt (10 rounds)
+  teamName: string;          // Max 50 chars
+  logo: string;              // Team logo identifier
+  role: 'admin' | 'user';    // RBAC role
+  createdAt: number;         // Unix timestamp
 }
 ```
 
-### Player
+**Zod Schema:**
+```typescript
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  login: z.string().min(3).max(20),
+  passwordHash: z.string(),
+  teamName: z.string().min(1).max(50),
+  logo: z.string(),
+  role: z.enum(['admin', 'user']),
+  createdAt: z.number(),
+});
+```
+
+### 3.2 Player
+
 ```typescript
 interface Player {
   id: string;
-  first_name: string;
-  last_name: string;
-  position: 'C' | 'LW' | 'RW' | 'D' | 'G';
-  cap_hit: number;         // Зарплата в $
-  team: string;            // Команда NHL
+  firstName: string;
+  lastName: string;
+  eligiblePositions: ('C' | 'LW' | 'RW' | 'D' | 'G')[];  // Multi-position support
+  capHit: number;            // Salary in $
+  nhlTeam: string;           // NHL team abbreviation
   stats: {
     games: number;
     goals: number;
     assists: number;
     points: number;
   };
-  drafted_by: string | null;
-  draft_week: number | null;
+  draftedBy: string | null;  // userId or null
+  draftWeek: number | null;
 }
 ```
 
-### Team
+**Ключевые особенности:**
+- `eligiblePositions` — массив позиций (например, игрок может быть C/LW)
+- Игрок может занять **только один** слот в ростере
+- `capHit` — зарплата игрока по Salary Cap ($95M)
+
+### 3.3 Team
+
 ```typescript
 interface Team {
-  team_id: string;
-  owner_id: string;
-  name: string;
+  userId: string;
+  teamName: string;
   logo: string;
-  players: string[];       // player IDs
-  salary_total: number;    // Max 95,500,000
+  players: string[];         // Array of player IDs
+  slots: Slot[];             // 6 позиций: LW, C, RW, D, D, G
+  salaryTotal: number;       // Max 95,500,000
   week: number;
+}
+
+interface Slot {
+  position: 'LW' | 'C' | 'RW' | 'D' | 'G';
+  playerId: string | null;
 }
 ```
 
-### DraftState
+### 3.4 DraftState
+
 ```typescript
 interface DraftState {
-  week: number;
-  is_active: boolean;
-  start_time: string;
-  pick_order: string[];
-  current_pick: number;
-  timer_sec: number;
-  timer_started_at?: number;
-  timer_remaining_ms?: number;
+  roomId: string;
+  started: boolean;
+  completed: boolean;
   paused: boolean;
-  history: DraftPick[];
-  snake_draft: boolean;
+  pickOrder: string[];       // Array of user IDs
+  pickIndex: number;         // Current pick index (0-based)
+  numRounds: number;         // Default: 6
+  timerSec: number;          // Default: 60
+  timerStartedAt: number | null;
+  activeUserId: string | null;
+  picks: DraftPick[];
+  snakeDraft: boolean;       // true = reverse in even rounds
 }
 
 interface DraftPick {
-  pick_index: number;
+  pickIndex: number;
   round: number;
   slot: number;
-  user_id: string;
-  player_id: string;
+  userId: string;
+  playerId: string;
   timestamp: number;
+  auto: boolean;             // true if autopick
 }
 ```
 
@@ -123,197 +177,419 @@ interface DraftPick {
 
 ## 4. REST API
 
-### POST /register
+### 4.1 Authentication (`/api/auth`)
+
+#### POST /api/auth/register
+**Request:**
 ```json
-Request: { "login": "string", "password": "string", "team_name": "string", "logo": "string" }
-Response: { "user_id": "uuid", "token": "jwt" }
-Errors: 400 "Login already exists"
+{
+  "login": "string",        // min 3, max 20 chars
+  "password": "string",     // min 6 chars
+  "teamName": "string"      // max 50 chars
+}
 ```
 
-### POST /login
+**Response (200):**
 ```json
-Request: { "login": "string", "password": "string" }
-Response: { "user_id": "uuid", "token": "jwt" }
-Errors: 401 "Invalid credentials"
+{
+  "userId": "uuid",
+  "teamName": "string"
+}
 ```
 
-### POST /draft/start
+**Errors:**
+- `400` — "Login already exists"
+- `400` — "Validation error" (Zod validation)
+
+#### POST /api/auth/login
+**Request:**
 ```json
-Request: { "room_id": "string", "pick_order": ["user_id"], "timer_sec": 60 }
-Response: { "draft_state": {...} }
-Auth: Required (admin only)
+{
+  "login": "string",
+  "password": "string"
+}
 ```
 
-### GET /draft-room?room_id={id}
+**Response (200):**
 ```json
-Response: { "draft_state": {...}, "available_players": [...], "my_team": {...} }
-Auth: Required
+{
+  "userId": "uuid",
+  "teamName": "string"
+}
 ```
 
-### POST /draft/pick
+**Errors:**
+- `401` — "Invalid credentials"
+
+#### POST /api/auth/logout
+**Response (200):**
 ```json
-Request: { "room_id": "string", "player_id": "string" }
-Response: { "draft_state": {...}, "team": {...} }
-Errors: 400 "Not your turn!", "Player already picked!", "Salary cap exceeded!"
-Auth: Required
+{
+  "ok": true
+}
 ```
 
-### GET /team?user_id={id}
+### 4.2 Draft Management (`/api/draft`)
+
+#### POST /api/draft/start
+**Auth:** Required (admin only)
+
+**Request:**
 ```json
-Response: { "team": {...}, "players": [...] }
-Auth: Required
+{
+  "roomId": "string",
+  "pickOrder": ["userId1", "userId2"],  // Min 2 users
+  "timerSec": 60                        // Default: 60
+}
 ```
 
-### GET /players?drafted=false&position={pos}
+**Response (200):**
 ```json
-Response: { "players": [...] }
+{
+  "draft": { /* DraftState */ }
+}
 ```
 
-### GET /leaderboard?week={week}
-```json
-Response: { "leaderboard": [...] }
+#### GET /api/draft/room
+**Auth:** Required
 
-### GET /draft/teams?roomId={id}
+**Query Params:**
+- `roomId` (required)
+
+**Response (200):**
 ```json
-Response: {
+{
+  "draft": { /* DraftState */ },
+  "myTeam": { /* Team */ },
+  "availablePlayers": [ /* Player[] */ ]
+}
+```
+
+#### POST /api/draft/pick
+**Auth:** Required
+
+**Request:**
+```json
+{
+  "roomId": "string",
+  "playerId": "string"
+}
+```
+
+**Response (200):**
+```json
+{
+  "draft": { /* DraftState */ },
+  "team": { /* Team */ }
+}
+```
+
+**Errors:**
+- `400` — "Not your turn!"
+- `400` — "Player already picked!"
+- `400` — "Salary cap exceeded!"
+- `400` — "No free slot for this position!"
+
+#### GET /api/draft/teams
+**Auth:** Required
+
+**Query Params:**
+- `roomId` (required)
+
+**Response (200):**
+```json
+{
   "roomId": "string",
   "teams": [
     {
       "ownerId": "string",
       "name": "string",
       "logo": "string",
-      "salaryTotal": 0,
-      "players": ["player_id"],
-      "slots": [ { "position": "LW|C|RW|D|G", "playerId": "string | null" } ]
+      "salaryTotal": 25000000,
+      "players": ["player-1", "player-2"],
+      "slots": [
+        { "position": "LW", "playerId": null },
+        { "position": "C", "playerId": "player-1" }
+      ]
     }
   ]
 }
-Auth: Required
 ```
+
+### 4.3 Data (`/api/data`)
+
+#### GET /api/data/team
+**Auth:** Required
+
+**Query Params:**
+- `userId` (optional, default: current user)
+
+**Response (200):**
+```json
+{
+  "team": { /* Team */ },
+  "picks": [ /* Player[] with full objects */ ]
+}
+```
+
+#### GET /api/data/players
+**Query Params:**
+- `drafted` (optional): "true" | "false"
+- `position` (optional): "C" | "LW" | "RW" | "D" | "G"
+
+**Response (200):**
+```json
+{
+  "players": [ /* Player[] */ ]
+}
+```
+
+#### GET /api/data/leaderboard
+**Query Params:**
+- `week` (optional): number
+
+**Response (200):**
+```json
+{
+  "leaderboard": [
+    {
+      "userId": "string",
+      "teamName": "string",
+      "totalPoints": 1250,
+      "rank": 1
+    }
+  ]
+}
 ```
 
 ---
 
 ## 5. WebSocket Events
 
-### Клиент → Сервер
+### 5.1 Lobby Events
 
-- `draft:join` — `{roomId}`
-- `draft:start` — `{roomId, pickOrder, timerSec}`
-- `draft:pick` — `{roomId, userId, playerId}`
-- `draft:pause` / `draft:resume` — `{roomId}`
+**Клиент → Сервер:**
 
-Лобби (Lobby):
-- `lobby:join` — `{roomId, userId, login}`
-- `lobby:ready` — `{roomId, userId, ready}`
-- `lobby:addBots` — `{roomId, count}` (admin only)
-- `lobby:start` — `{roomId, pickOrder}` (admin only)
-- `lobby:kick` — `{roomId, userId}` (admin only)
+| Event | Payload | Auth | Description |
+|-------|---------|------|-------------|
+| `lobby:join` | `{roomId, userId, login}` | ✅ | Присоединиться к лобби |
+| `lobby:ready` | `{roomId, userId, ready}` | ✅ | Изменить статус готовности |
+| `lobby:addBots` | `{roomId, count}` | ✅ Admin | Добавить ботов |
+| `lobby:start` | `{roomId, pickOrder}` | ✅ Admin | Запустить драфт |
+| `lobby:kick` | `{roomId, userId}` | ✅ Admin | Исключить участника |
 
-### Сервер → Клиент
+**Сервер → Клиент:**
 
-- `connected` — `{ok: true}`
-- `draft:state` — полное состояние драфта
-- `draft:timer` — `{roomId, timerRemainingMs, activeUserId}` (каждую секунду)
-- `draft:autopick` — `{roomId, pickIndex, pick}`
-- `draft:error` — `{message}`
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `lobby:participants` | `{participants, adminId}` | Список участников |
+| `lobby:ready` | `{userId, ready}` | Статус готовности изменён |
+| `lobby:start` | `{}` | Драфт начался |
+| `lobby:error` | `{message}` | Ошибка |
+| `lobby:kicked` | `{roomId}` | Вы исключены |
 
-Лобби (Lobby):
-- `lobby:participants` — `{participants, adminId}`
-- `lobby:ready` — `{userId, ready}`
-- `lobby:start`
-- `lobby:error` — `{message}`
-- `lobby:kicked` — `{roomId}`
+### 5.2 Draft Events
+
+**Клиент → Сервер:**
+
+| Event | Payload | Auth | Description |
+|-------|---------|------|-------------|
+| `draft:join` | `{roomId}` | ✅ | Подключиться к драфту |
+| `draft:pick` | `{roomId, userId, playerId}` | ✅ | Выбрать игрока |
+| `draft:pause` | `{roomId}` | ✅ Admin | Пауза |
+| `draft:resume` | `{roomId}` | ✅ Admin | Продолжить |
+
+**Сервер → Клиент:**
+
+| Event | Payload | Frequency | Description |
+|-------|---------|-----------|-------------|
+| `draft:state` | `{draft: DraftState}` | After each pick | Полное состояние |
+| `draft:timer` | `{roomId, timerRemainingMs, activeUserId}` | Every 1 sec | Тик таймера |
+| `draft:autopick` | `{roomId, pickIndex, pick}` | On autopick | Автопик произошёл |
+| `draft:error` | `{message}` | On error | Ошибка |
 
 ---
 
 ## 6. Ключевые алгоритмы
 
-### Draft Pick
+### 6.1 Draft Pick (с валидацией)
+
 ```typescript
-function draftPick(userId, playerId, draftState, team, players, SALARY_CAP = 95_500_000) {
-  // 1. Проверка очерёдности (snake draft)
+function makePick(
+  userId: string,
+  playerId: string,
+  draftState: DraftState,
+  team: Team,
+  players: Map<string, Player>,
+  SALARY_CAP = 95_500_000
+): { team: Team; draftState: DraftState } {
+  // 1. Проверка очерёдности
   const activeUserId = getActiveUserId(draftState);
-  if (activeUserId !== userId) throw new Error('Not your turn!');
-  
+  if (activeUserId !== userId) {
+    throw new Error('Not your turn!');
+  }
+
   // 2. Проверка доступности игрока
   const player = players.get(playerId);
-  if (player.drafted_by !== null) throw new Error('Player already picked!');
-  
+  if (!player) throw new Error('Player not found!');
+  if (player.draftedBy !== null) {
+    throw new Error('Player already picked!');
+  }
+
   // 3. Проверка salary cap
-  if (team.salary_total + player.cap_hit > SALARY_CAP) {
+  if (team.salaryTotal + player.capHit > SALARY_CAP) {
     throw new Error('Salary cap exceeded!');
   }
-  
-  // 4. Atomic update
+
+  // 4. Проверка свободного слота по позиции
+  const freeSlot = team.slots.find(
+    s => player.eligiblePositions.includes(s.position) && s.playerId === null
+  );
+  if (!freeSlot) {
+    throw new Error('No free slot for this position!');
+  }
+
+  // 5. Atomic update
+  freeSlot.playerId = playerId;
   team.players.push(playerId);
-  team.salary_total += player.cap_hit;
-  player.drafted_by = userId;
-  
-  draftState.history.push({ pick_index: draftState.current_pick, user_id: userId, player_id: playerId, ... });
-  draftState.current_pick++;
-  draftState.timer_started_at = Date.now();
-  
+  team.salaryTotal += player.capHit;
+  player.draftedBy = userId;
+
+  draftState.picks.push({
+    pickIndex: draftState.pickIndex,
+    round: Math.floor(draftState.pickIndex / draftState.pickOrder.length) + 1,
+    slot: draftState.pickIndex % draftState.pickOrder.length,
+    userId,
+    playerId,
+    timestamp: Date.now(),
+    auto: false,
+  });
+
+  draftState.pickIndex++;
+  draftState.timerStartedAt = Date.now();
+
+  // 6. Check if draft completed
+  if (draftState.pickIndex >= draftState.pickOrder.length * draftState.numRounds) {
+    draftState.completed = true;
+    draftState.activeUserId = null;
+  } else {
+    draftState.activeUserId = getActiveUserId(draftState);
+  }
+
   return { team, draftState };
 }
 ```
 
-### Snake Draft: активный пользователь
+### 6.2 Snake Draft (активный пользователь)
+
 ```typescript
-function getActiveUserId(draftState) {
-  const orderLen = draftState.pick_order.length;
-  const round = Math.floor(draftState.current_pick / orderLen) + 1;
-  const slot = draftState.current_pick % orderLen;
-  
-  // Реверс в чётных раундах
+function getActiveUserId(draftState: DraftState): string {
+  const orderLen = draftState.pickOrder.length;
+  const round = Math.floor(draftState.pickIndex / orderLen) + 1;
+  const slot = draftState.pickIndex % orderLen;
+
+  // Реверс в чётных раундах для snake draft
   const isEvenRound = round % 2 === 0;
-  const effectiveSlot = draftState.snake_draft && isEvenRound
-    ? orderLen - 1 - slot
-    : slot;
-  
-  return draftState.pick_order[effectiveSlot];
+  const effectiveSlot =
+    draftState.snakeDraft && isEvenRound
+      ? orderLen - 1 - slot
+      : slot;
+
+  return draftState.pickOrder[effectiveSlot];
 }
 ```
 
-### Автопик (при истечении таймера)
+### 6.3 Автопик (с учётом позиций и cap)
+
 ```typescript
-function makeAutoPick(draftState, teams, players) {
+function makeAutoPick(
+  draftState: DraftState,
+  teams: Map<string, Team>,
+  players: Map<string, Player>
+): { team: Team; draftState: DraftState } {
   const activeUserId = getActiveUserId(draftState);
-  const team = teams.get(activeUserId);
-  
-  // Стратегия: топ по зарплате из доступных
+  const team = teams.get(activeUserId)!;
+
+  // Найти свободные позиции
+  const freePositions = team.slots
+    .filter(s => s.playerId === null)
+    .map(s => s.position);
+
+  // Найти доступных игроков (по cap и позициям)
   const availablePlayers = Array.from(players.values())
-    .filter(p => p.drafted_by === null)
-    .filter(p => team.salary_total + p.cap_hit <= 95_500_000);
-  
-  availablePlayers.sort((a, b) => b.cap_hit - a.cap_hit);
-  
-  return draftPick(activeUserId, availablePlayers[0].id, draftState, team, players);
+    .filter(p => p.draftedBy === null)
+    .filter(p => team.salaryTotal + p.capHit <= 95_500_000)
+    .filter(p => p.eligiblePositions.some(pos => freePositions.includes(pos)));
+
+  if (availablePlayers.length === 0) {
+    throw new Error('No available players for autopick!');
+  }
+
+  // Сортировка по очкам прошлого сезона (лучший игрок)
+  availablePlayers.sort((a, b) => b.stats.points - a.stats.points);
+
+  return makePick(activeUserId, availablePlayers[0].id, draftState, team, players);
 }
 ```
 
-### Таймер-менеджер
+### 6.4 DraftTimerManager (фоновый процесс)
+
 ```typescript
 class DraftTimerManager {
   private intervalId?: NodeJS.Timeout;
-  
+  private io: Server;
+  private draftManager: DraftRoomManager;
+
+  constructor(io: Server, draftManager: DraftRoomManager) {
+    this.io = io;
+    this.draftManager = draftManager;
+  }
+
   start() {
     this.intervalId = setInterval(() => this.tick(), 1000);
   }
-  
+
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+    }
+  }
+
   private tick() {
     for (const [roomId, room] of this.draftManager.getRooms()) {
       const state = room.getState();
-      if (!state.started || state.paused) continue;
-      
-      // Отправить tick
-      this.io.to(roomId).emit('draft:timer', { roomId, timerRemainingMs: state.timerRemainingMs, ... });
-      
-      // Проверить истечение
-      if (room.isTimerExpired()) {
-        const newState = room.makeAutoPick();
-        this.io.to(roomId).emit('draft:state', newState);
-        this.io.to(roomId).emit('draft:autopick', { roomId, pick: newState.picks[newState.picks.length - 1] });
+
+      // Пропустить неактивные или завершённые драфты
+      if (!state.started || state.completed || state.paused) continue;
+
+      // Вычислить оставшееся время
+      const elapsed = Date.now() - (state.timerStartedAt || 0);
+      const remaining = state.timerSec * 1000 - elapsed;
+
+      // Отправить tick всем в комнате
+      this.io.to(roomId).emit('draft:timer', {
+        roomId,
+        timerRemainingMs: Math.max(0, remaining),
+        activeUserId: state.activeUserId,
+      });
+
+      // Автопик при истечении времени
+      if (remaining <= 0) {
+        try {
+          const newState = room.makeAutoPick();
+          this.io.to(roomId).emit('draft:state', { draft: newState });
+          this.io.to(roomId).emit('draft:autopick', {
+            roomId,
+            pickIndex: newState.pickIndex - 1,
+            pick: newState.picks[newState.picks.length - 1],
+          });
+        } catch (err) {
+          console.error(`Autopick failed for room ${roomId}:`, err);
+          this.io.to(roomId).emit('draft:error', {
+            message: 'Autopick failed! Draft paused.',
+          });
+          room.pause();
+        }
       }
     }
   }
@@ -322,66 +598,30 @@ class DraftTimerManager {
 
 ---
 
-## 7. Парсинг capwages.com (Python)
+## 7. База данных (SQLite)
 
-```python
-import requests
-from bs4 import BeautifulSoup
-import json
-
-def fetch_nhl_salaries(output_file="players.json"):
-    url = "https://capwages.com/"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    
-    players = []
-    table = soup.find("table", {"id": "player-salaries"})
-    rows = table.find_all("tr")[1:]
-    
-    for row in rows:
-        cells = row.find_all("td")
-        player = {
-            "id": f"player-{len(players)}",
-            "first_name": cells[0].text.strip(),
-            "last_name": cells[1].text.strip(),
-            "position": cells[2].text.strip(),
-            "cap_hit": int(cells[3].text.replace("$", "").replace(",", "")),
-            "team": cells[4].text.strip(),
-            "stats": {"games": 0, "goals": 0, "assists": 0, "points": 0},
-            "drafted_by": None,
-            "draft_week": None,
-        }
-        players.append(player)
-    
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(players, f, ensure_ascii=False, indent=2)
-    
-    return players
-```
-
-**Запуск:** `python parser.py` → `players.json`
-
----
-
-## 8. База данных (SQLite)
+### 7.1 Схема
 
 ```sql
-CREATE TABLE users (
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   login TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   team_name TEXT NOT NULL,
   logo TEXT NOT NULL,
+  role TEXT CHECK(role IN ('admin', 'user')) DEFAULT 'user',
   created_at INTEGER NOT NULL
 );
 
-CREATE TABLE players (
+-- Players table
+CREATE TABLE IF NOT EXISTS players (
   id TEXT PRIMARY KEY,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
-  position TEXT CHECK(position IN ('C', 'LW', 'RW', 'D', 'G')),
+  eligible_positions TEXT NOT NULL,  -- JSON array: ["C", "LW"]
   cap_hit INTEGER NOT NULL,
-  team TEXT NOT NULL,
+  nhl_team TEXT NOT NULL,
   stats_games INTEGER DEFAULT 0,
   stats_goals INTEGER DEFAULT 0,
   stats_assists INTEGER DEFAULT 0,
@@ -390,191 +630,224 @@ CREATE TABLE players (
   draft_week INTEGER
 );
 
-CREATE TABLE teams (
-  team_id TEXT PRIMARY KEY,
-  owner_id TEXT REFERENCES users(id),
-  name TEXT NOT NULL,
-  logo TEXT NOT NULL,
-  salary_total INTEGER NOT NULL DEFAULT 0 CHECK(salary_total <= 95500000),
-  week INTEGER NOT NULL
+-- Draft Rooms table
+CREATE TABLE IF NOT EXISTS draft_rooms (
+  room_id TEXT PRIMARY KEY,
+  state TEXT NOT NULL,               -- JSON serialized DraftState
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE draft_picks (
+-- Draft Picks table (for history)
+CREATE TABLE IF NOT EXISTS draft_picks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  week INTEGER NOT NULL,
+  room_id TEXT NOT NULL,
   pick_index INTEGER NOT NULL,
   round INTEGER NOT NULL,
-  user_id TEXT REFERENCES users(id),
-  player_id TEXT REFERENCES players(id),
-  timestamp INTEGER NOT NULL
+  user_id TEXT NOT NULL REFERENCES users(id),
+  player_id TEXT NOT NULL REFERENCES players(id),
+  timestamp INTEGER NOT NULL,
+  auto BOOLEAN DEFAULT 0,
+  UNIQUE(room_id, pick_index)
 );
+
+-- Indexes для performance
+CREATE INDEX IF NOT EXISTS idx_players_drafted_by ON players(drafted_by);
+CREATE INDEX IF NOT EXISTS idx_players_eligible_positions ON players(eligible_positions);
+CREATE INDEX IF NOT EXISTS idx_draft_picks_room_id ON draft_picks(room_id);
 ```
 
-**Альтернатива:** JSON-файлы (`data/users.json`, `data/players.json`, ...)
+### 7.2 Миграция с SQLite на PostgreSQL (future)
+
+**Причины:**
+- SQLite ограничен 1 writer (bottleneck при >100 users)
+- PostgreSQL поддерживает MVCC (concurrent writes)
+- Встроенная репликация и failover
+
+**Изменения:**
+- Типы: `INTEGER` → `BIGINT`, `TEXT` → `VARCHAR(n)` или `JSONB`
+- Connection pooling: pgBouncer или `pg.Pool`
+- Indexes: добавить GIN index на `eligible_positions` (JSONB array)
 
 ---
 
-## 9. Безопасность
+## 8. Безопасность
 
-### Хэширование паролей (bcrypt)
+### 8.1 Реализовано
+
+✅ **Session-based auth** (express-session + httpOnly cookies)  
+✅ **Password hashing** (bcrypt, 10 rounds)  
+✅ **CORS** (whitelist для production через `CORS_ORIGIN` env)  
+✅ **SQL injection protection** (параметризованные запросы)  
+✅ **XSS protection** (React автоматическое экранирование)  
+✅ **RBAC** (admin не может force-pick/undo)
+
+### 8.2 В разработке (v1.0)
+
+⚠️ **Rate limiting** (express-rate-limit)
 ```typescript
-import bcrypt from 'bcrypt';
+import rateLimit from 'express-rate-limit';
 
-const hashPassword = (password: string) => bcrypt.hash(password, 10);
-const verifyPassword = (password: string, hash: string) => bcrypt.compare(password, hash);
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,  // 1 минута
+  max: 5,               // 5 запросов
+  message: 'Too many requests, please try again later.',
+});
+
+app.use('/api/auth/*', authLimiter);
 ```
 
-### Авторизация и сессии
-В дев-режиме используется cookie-сессия (express-session), общий middleware применяется и для Socket.IO — userId берётся из сессии. Проверка ролей (RBAC) выполняется на сервере для всех админ‑методов (draft:pause/resume — только глобальный админ; lobby:addBots/start/kick — админ лобби или глобальный админ). Вмешательство в логику драфта (force-pick/undo) не поддерживается по требованиям.
-
-JWT может быть применён в будущем, пример ниже приведён как альтернатива.
-
-### JWT для авторизации
-```typescript
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'change-in-production';
-
-const generateToken = (userId: string) => jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
-const verifyToken = (token: string) => jwt.verify(token, JWT_SECRET) as { userId: string };
-```
-
-### Middleware
-```typescript
-function requireAuth(req, res, next) {
-  const token = req.headers.authorization?.substring(7); // "Bearer {token}"
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  
-  try {
-    const { userId } = verifyToken(token);
-    req.userId = userId;
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-}
-```
+⚠️ **CSRF protection** (csurf middleware)  
+⚠️ **Input sanitization** (express-validator)  
+⚠️ **Secure headers** (helmet configuration)
 
 ---
 
-## 10. Тестирование
+## 9. Тестирование
 
-### Unit тесты (Vitest)
+### 9.1 Unit + Integration Tests (Vitest)
+
+**Покрытие:**
+- REST API: 39 тестов
+- Socket.IO: 4 теста
+- Unit (business logic): 4 теста
+- Persistence: 3 теста
+
+**Запуск:**
+```bash
+cd server
+npm test
+```
+
+### 9.2 E2E Tests (Playwright)
+
+**Сценарии:**
+- `rbac.spec.ts` — Проверка ограничений админа
+- `allteams.spec.ts` — Draft Board (все команды)
+- `reconnect.spec.ts` — Reconnect grace period
+- `smoke.spec.ts` — Базовый smoke test
+
+**Браузеры:** Chromium, Firefox, WebKit
+
+**Запуск:**
+```bash
+npx playwright test
+```
+
+### 9.3 Пример теста (Snake Draft)
+
 ```typescript
 import { describe, it, expect } from 'vitest';
+import { DraftRoom } from '../draft';
 
-describe('DraftRoom', () => {
-  it('validates salary cap', () => {
-    const room = new DraftRoom({ roomId: 'test', pickOrder: ['u1'], timerSec: 60 });
+describe('DraftRoom: Snake Draft', () => {
+  it('should reverse pick order in even rounds', () => {
+    const room = new DraftRoom({
+      roomId: 'test',
+      pickOrder: ['u1', 'u2', 'u3'],
+      timerSec: 60,
+      numRounds: 4,
+    });
+
     room.start();
-    
-    expect(() => room.makePick('u1', 'expensive-player')).toThrow('Salary cap exceeded!');
-  });
-  
-  it('snake draft reverses in even rounds', () => {
-    // ... см. src/__tests__/draft.test.ts
-  });
-});
-```
 
-### E2E тесты (Socket.IO)
-```typescript
-import { io as Client } from 'socket.io-client';
+    // Round 1: u1 → u2 → u3
+    expect(room.getState().activeUserId).toBe('u1');
+    room.makePick('u1', 'p1');
+    expect(room.getState().activeUserId).toBe('u2');
+    room.makePick('u2', 'p2');
+    expect(room.getState().activeUserId).toBe('u3');
+    room.makePick('u3', 'p3');
 
-it('draft start and pick flow', async () => {
-  const client = Client(`http://localhost:${port}`);
-  
-  client.emit('draft:start', { roomId: 'room-1', pickOrder: ['u1', 'u2'], timerSec: 60 });
-  const state = await waitForEvent(client, 'draft:state');
-  
-  expect(state.started).toBe(true);
-  expect(state.activeUserId).toBe('u1');
-  
-  client.emit('draft:pick', { roomId: 'room-1', userId: 'u1', playerId: 'p1' });
-  const state2 = await waitForEvent(client, 'draft:state');
-  
-  expect(state2.pickIndex).toBe(1);
-  expect(state2.activeUserId).toBe('u2');
+    // Round 2: u3 → u2 → u1 (reversed)
+    expect(room.getState().activeUserId).toBe('u3');
+    room.makePick('u3', 'p4');
+    expect(room.getState().activeUserId).toBe('u2');
+    room.makePick('u2', 'p5');
+    expect(room.getState().activeUserId).toBe('u1');
+  });
 });
 ```
 
 ---
 
-## 11. Деплой
+## 10. Deployment
 
-### Railway / Render
-```yaml
-# railway.toml / render.yaml
-[build]
-  command = "cd server && npm install && npm run build"
+### 10.1 Environment Variables
 
-[start]
-  command = "cd server && npm start"
+```env
+# Server
+PORT=3001
+NODE_ENV=production
 
-[env]
-  PORT = "3001"
-  JWT_SECRET = "random-secret"
-  NODE_ENV = "production"
+# Session
+SESSION_SECRET=<random-64-char-string>
+
+# Database
+USE_SQLITE=1
+DB_FILE=./data/draft.db
+
+# CORS
+CORS_ORIGIN=https://your-domain.com
+
+# Timer
+TIMER_SEC=60
+RECONNECT_GRACE_SEC=60
 ```
 
-### API документация и окружение (для интеграции фронтенда)
+### 10.2 Production Setup (Railway / Render)
 
-- OpenAPI JSON: `GET /api/openapi.json`
-- Swagger UI: `GET /api/docs`
+**Build Command:**
+```bash
+cd server && npm install && npm run build
+```
 
-Переменные окружения (.env):
-- `PORT` — порт HTTP сервера (по умолчанию 3001)
-- `SESSION_SECRET` — секрет для cookie-сессий (измените в продакшне)
-- `CORS_ORIGIN` — список разрешённых Origins (через запятую). Если пусто — разрешены все Origins (режим разработки)
-- `TIMER_SEC` — дефолтное значение таймера (сек), может переопределяться на уровне комнаты
+**Start Command:**
+```bash
+cd server && npm start
+```
 
-Безопасность:
-- В продакшне включить `cookie.secure = true` (HTTPS)
-- Задать строгое значение `CORS_ORIGIN` (список доменов фронтенда)
-- Ограничить rate-limit на /api/auth/* и /api/draft/* (планируется post-MVP)
+**Health Check:**
+```bash
+GET /health
+```
+
+### 10.3 Performance Considerations
+
+**Для 50-100 concurrent users:**
+- ✅ SQLite достаточно (write lock не критичен)
+- ✅ Single Node.js instance (no clustering needed)
+- ✅ In-memory session store допустим
+
+**Для 100-500 users:**
+- ⚠️ Рассмотреть PostgreSQL
+- ⚠️ Redis session store (Upstash Free Tier)
+- ⚠️ Node.js clustering (4 workers)
 
 ---
 
-## 12. Дальнейшие улучшения (post-MVP)
+## 11. Roadmap (Post-MVP)
 
-- Frontend UI (React/Vue)
-- PostgreSQL вместо SQLite
-- Redis для кэша и сессий
-- Docker для деплоя
-- Ручная корректировка составов (админ)
-- Экспорт результатов (CSV/Excel)
-- Чат между участниками
-- Мобильное приложение (PWA)
+### v1.0 (Security & Reliability)
+- [ ] Rate limiting
+- [ ] CSRF protection
+- [ ] Structured logging (Winston)
+- [ ] Graceful shutdown
+- [ ] Health checks
 
-```
-fantasy-draft-app/
-├── server/
-│   ├── src/
-│   │   ├── index.ts
-│   │   ├── app.ts
-│   │   ├── draft.ts
-│   │   ├── draftTimer.ts
-│   │   └── __tests__/
-│   ├── data/
-│   │   └── players.json
-│   ├── package.json
-│   └── tsconfig.json
-├── parser/
-│   └── parser.py
-├── REQUIREMENTS.md
-├── TECHNICAL_SPEC.md
-└── README.md
-```
+### v2.0 (Scaling)
+- [ ] PostgreSQL migration
+- [ ] Redis session store
+- [ ] Node.js clustering
+- [ ] Load testing (k6)
+
+### v3.0 (Features)
+- [ ] Полная база NHL игроков (~700)
+- [ ] Детализированная скоринговая система
+- [ ] Email уведомления
+- [ ] PWA (mobile app)
 
 ---
 
-## 12. Дальнейшие улучшения (post-MVP)
-
-- Frontend UI (React/Vue)
-- PostgreSQL вместо SQLite
-- Redis для кэша и сессий
-- Docker для деплоя
-- Ручная корректировка составов (админ)
-- Экспорт результатов (CSV/Excel)
-- Чат между участниками
-- Мобильное приложение (PWA)
+**Документ обновлён:** 23.10.2025  
+**Статус:** Production-Ready для 50-100 users

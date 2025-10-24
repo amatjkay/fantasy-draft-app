@@ -21,13 +21,24 @@ test.describe('Admin Actions', () => {
     userPage = await userContext.newPage();
 
     // Register admin via UI (with roomId in URL)
-    // First user will automatically be admin thanks to auth.ts logic
+    // Intercept the registration request to make this user an admin reliably
+    const adminLogin = `admin-${rnd}`;
+    await adminPage.route('**/api/auth/register', async (route) => {
+      const postData = route.request().postDataJSON();
+      if (postData.login === adminLogin) {
+        await route.continue({ postData: { ...postData, makeAdmin: true } });
+      } else {
+        await route.continue();
+      }
+    });
+
     await adminPage.goto(`/?roomId=${roomId}`);
     await adminPage.getByRole('button', { name: 'Нет аккаунта? Зарегистрироваться' }).click();
-    await adminPage.locator('input[type="text"]').first().fill(`admin-${rnd}`);
+    await adminPage.locator('input[type="text"]').first().fill(adminLogin);
     await adminPage.locator('input[type="password"]').fill('password');
     await adminPage.locator('input[type="text"]').nth(1).fill('Admin Team');
     await adminPage.getByRole('button', { name: 'Зарегистрироваться' }).click();
+    await adminPage.unroute('**/api/auth/register');
     await expect(adminPage.getByRole('heading', { name: 'Лобби драфта' })).toBeVisible();
     adminId = await adminPage.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}').id);
 
@@ -53,9 +64,6 @@ test.describe('Admin Actions', () => {
       data: { roomId },
       headers: { 'Content-Type': 'application/json' }
     });
-    if (!pauseRes.ok()) {
-      console.log('Pause request failed:', pauseRes.status(), await pauseRes.text());
-    }
     expect(pauseRes.ok()).toBeTruthy();
     let state = (await pauseRes.json()).draftState;
     expect(state.paused).toBe(true);

@@ -11,11 +11,11 @@ const router = Router();
 // ============================================================================
 
 const RegisterSchema = z.object({
-  login: z.string().min(3).max(20),
-  password: z.string().min(6),
-  teamName: z.string().min(3).max(50),
+  login: z.string().min(3, 'Login must be at least 3 characters long'),
+  password: z.string().min(6, 'Password must be at least 6 characters long'),
+  teamName: z.string().min(3, 'Team name must be at least 3 characters long').max(50),
   logo: z.string().optional().default('default-logo'),
-  makeAdmin: z.boolean().optional(), // For test purposes
+  makeAdmin: z.boolean().optional(), // For e2e tests
 });
 
 const LoginSchema = z.object({
