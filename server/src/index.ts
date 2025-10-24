@@ -27,6 +27,7 @@ const io = new IOServer(httpServer, {
 // Use singleton draftManager (shared with REST API)
 const timerManager = new DraftTimerManager(io, draftManager);
 const lobbyManager = new LobbyManager();
+const userSocketMap = new Map<string, { userId: string, roomId: string }>(); // socket.id -> { userId, roomId }
 setIO(io);
 
 // Share express-session with Socket.IO
@@ -315,6 +316,7 @@ io.on('connection', (socket: Socket) => {
     
     const lobby = lobbyManager.createOrGetLobby(roomId, userId);
     lobbyManager.addParticipant(roomId, userId, login, teamName, socket.id);
+    userSocketMap.set(socket.id, { userId, roomId }); // Track user socket
     
     const participants = lobbyManager.getParticipantsList(roomId);
     io.to(`lobby:${roomId}`).emit('lobby:participants', {
@@ -539,6 +541,22 @@ io.on('connection', (socket: Socket) => {
   // ============================================================================
 
   socket.on('disconnect', () => {
+    // Handle lobby disconnect
+    if (userSocketMap.has(socket.id)) {
+      const { userId, roomId } = userSocketMap.get(socket.id)!;
+      lobbyManager.removeParticipant(roomId, userId);
+      userSocketMap.delete(socket.id);
+      
+      const lobby = lobbyManager.getLobby(roomId);
+      if (lobby) {
+        const participants = lobbyManager.getParticipantsList(roomId);
+        io.to(`lobby:${roomId}`).emit('lobby:participants', {
+          participants,
+          adminId: lobby.adminId,
+        });
+      }
+    }
+
     // Cleanup presence memberships
     const memberships = socketMemberships.get(socket.id) ?? [];
     memberships.forEach(({ roomId, userId }) => {
