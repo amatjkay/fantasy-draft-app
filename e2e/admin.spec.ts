@@ -53,6 +53,9 @@ test.describe('Admin Actions', () => {
       data: { roomId },
       headers: { 'Content-Type': 'application/json' }
     });
+    if (!pauseRes.ok()) {
+      console.log('Pause request failed:', pauseRes.status(), await pauseRes.text());
+    }
     expect(pauseRes.ok()).toBeTruthy();
     let state = (await pauseRes.json()).draftState;
     expect(state.paused).toBe(true);
