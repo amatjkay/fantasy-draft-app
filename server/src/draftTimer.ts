@@ -53,49 +53,56 @@ export class DraftTimerManager {
 
       // Проверяем истечение таймера
       if (room.isTimerExpired()) {
-        // Таймер истёк: автопик
-        const players = dataStore.getPlayersMap();
-        const teams = dataStore.getTeamsMap();
         const activeUserId = state.activeUserId;
         if (!activeUserId) {
-          console.error('[DraftTimer] No active user for autopick');
+          console.error('[DraftTimer] No active user for autopick, skipping turn.');
+          room.nextTurn();
           return;
         }
-        
+
         logger.timer.expired(roomId, activeUserId);
         console.log('[DraftTimer] Attempting autopick for user:', activeUserId);
+
         try {
+          // --- SUCCESSFUL AUTOPICK --- 
+          const players = dataStore.getPlayersMap();
+          const teams = dataStore.getTeamsMap();
           const newState = room.makeAutoPick(activeUserId, players, teams);
-          this.io.to(roomId).emit('draft:state', newState);
           const lastPick = newState.picks[newState.picks.length - 1];
+
+          // Notify clients
+          this.io.to(roomId).emit('draft:state', newState);
           this.io.to(roomId).emit('draft:autopick', {
             roomId,
             pickIndex: newState.pickIndex - 1,
             pick: lastPick,
           });
+
+          // Log and persist
           const player = players.get(lastPick.playerId);
           logger.autopick.success(roomId, lastPick.userId, lastPick.playerId, player?.stats?.points || 0);
-          // Persist autopick (best-effort)
-          try {
-            const repo = getDraftRepository();
-            const rec: DraftPickRecord = {
-              roomId,
-              pickIndex: lastPick.pickIndex,
-              round: lastPick.round,
-              slot: lastPick.slot,
-              userId: lastPick.userId,
-              playerId: lastPick.playerId,
-              autopick: true,
-              createdAt: Date.now(),
-            };
-            repo.savePick(rec);
-          } catch (err: any) {
-            // Автопик не удался (нет доступных игроков или ошибка)
-            logger.autopick.failed(roomId, state.activeUserId || 'unknown', err.message);
-            this.io.to(roomId).emit('draft:error', { message: `Autopick failed: ${err.message}` });
-          }
-        } catch (err) {
-          console.error('[DraftTimerManager] Auto-pick failed:', err);
+          const repo = getDraftRepository();
+          const rec: DraftPickRecord = {
+            roomId,
+            pickIndex: lastPick.pickIndex,
+            round: lastPick.round,
+            slot: lastPick.slot,
+            userId: lastPick.userId,
+            playerId: lastPick.playerId,
+            autopick: true,
+            createdAt: Date.now(),
+          };
+          repo.savePick(rec);
+
+        } catch (err: any) {
+          // --- FAILED AUTOPICK --- 
+          logger.autopick.failed(roomId, activeUserId, err.message);
+          console.error(`[DraftTimerManager] Auto-pick failed for ${activeUserId} in room ${roomId}:`, err.message);
+          
+          // Force next turn to prevent getting stuck
+          const newState = room.nextTurn();
+          this.io.to(roomId).emit('draft:state', newState);
+          this.io.to(roomId).emit('draft:error', { message: `Autopick failed for ${activeUserId}: ${err.message}` });
         }
       }
     });
