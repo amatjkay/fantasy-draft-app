@@ -22,12 +22,12 @@ test('All Teams page displays team rosters', async ({ browser, baseURL }) => {
 
   // Helper: register
   const register = async (page: any, login: string, password: string, team: string) => {
-    const target = baseURL ? `${baseURL}/?roomId=${roomId}` : `/?roomId=${roomId}`;
+    const target = `/?roomId=${roomId}`;
     await page.goto(target, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: 'Нет аккаунта? Зарегистрироваться' }).click();
-    await page.locator('input[type="text"]').first().fill(login);
-    await page.locator('input[type="password"]').fill(password);
-    await page.locator('input[type="text"]').nth(1).fill(team);
+    await page.getByTestId('register-login-input').fill(login);
+    await page.getByTestId('register-password-input').fill(password);
+    await page.getByTestId('team-name-input').fill(team);
     await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
     await expect(page.getByRole('heading', { name: 'Лобби драфта' })).toBeVisible({ timeout: 10_000 });
   };

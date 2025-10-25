@@ -58,6 +58,7 @@ router.post('/register', async (req: Request, res: Response) => {
       userId: user.id,
       login: user.login,
       teamName: user.teamName,
+      role: user.role,
       message: 'User registered successfully',
     });
   } catch (err: any) {
@@ -97,6 +98,7 @@ router.post('/login', async (req: Request, res: Response) => {
       userId: existingUser.id,
       login: existingUser.login,
       teamName: existingUser.teamName,
+      role: existingUser.role,
       message: 'Logged in successfully',
     });
   } catch (err: any) {

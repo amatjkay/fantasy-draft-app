@@ -236,19 +236,28 @@ export function AdminPanel({ onExit }: Props) {
                   {new Date(user.createdAt).toLocaleDateString()}
                 </td>
                 <td style={{ padding: '12px', textAlign: 'center' }}>
-                  <button
-                    onClick={() => startEdit(user)}
-                    style={{ padding: '6px 12px', background: '#2196F3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => deleteUser(user.id)}
-                    style={{ padding: '6px 12px', background: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    disabled={user.role === 'admin'}
-                  >
-                    Delete
-                  </button>
+                  {user.id === '1' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <span style={{ padding: '6px 12px', background: '#ffc107', color: '#212529', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                        🔒 Protected
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => startEdit(user)}
+                        style={{ padding: '6px 12px', background: '#2196F3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteUser(user.id)}
+                        style={{ padding: '6px 12px', background: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -257,7 +266,7 @@ export function AdminPanel({ onExit }: Props) {
       </div>
 
       <div style={{ marginTop: '20px', padding: '16px', background: '#fff3cd', borderRadius: '4px', fontSize: '14px' }}>
-        <strong>Note:</strong> Admin users cannot be deleted. You can edit any user's login, team name, role, and password.
+        <strong>Note:</strong> The default admin (ID=1) is protected and cannot be edited or deleted. All other users can be managed normally.
       </div>
     </div>
   );

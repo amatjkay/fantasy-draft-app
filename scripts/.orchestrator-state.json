@@ -1,0 +1,11 @@
+{
+  "mode": "dev",
+  "_stopping": false,
+  "processes": {
+    "server": {
+      "pid": 25892,
+      "cmd": "npm.cmd run dev",
+      "cwd": "C:\\dev\\fantasy-draft-app\\server"
+    }
+  }
+}

@@ -10,7 +10,7 @@ type View = 'login' | 'lobby' | 'draft' | 'admin' | 'team' | 'allteams';
 
 export function SimpleApp() {
   const [view, setView] = useState<View>('login');
-  const [userId, setUserId] = useState<string>('');
+  const [userId, setUserId] = useState<string | null>(null);
   const [userLogin, setUserLogin] = useState<string>('');
   const [userRole, setUserRole] = useState<'user' | 'admin'>('user');
   const [roomId, setRoomId] = useState<string>('');
@@ -136,8 +136,9 @@ export function SimpleApp() {
         </div>
         <Lobby
           roomId={roomId}
-          userId={userId}
+          userId={userId!}
           userLogin={userLogin}
+          userRole={userRole}
           onStartDraft={handleStartDraft}
           onExit={handleExitLobby}
         />
@@ -149,7 +150,7 @@ export function SimpleApp() {
     return (
       <DraftRoom
         roomId={roomId}
-        userId={userId}
+        userId={userId!}
         onExit={handleExitDraft}
         onNavigateToTeam={() => setView('team')}
       />

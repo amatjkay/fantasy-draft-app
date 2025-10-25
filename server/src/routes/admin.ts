@@ -34,28 +34,44 @@ router.put('/users/:userId', async (req: Request, res: Response) => {
   const { userId } = req.params;
   const { login, teamName, role, password } = req.body;
 
-  const user = dataStore.getUser(userId);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
+  try {
+    const user = dataStore.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-  // Update fields
-  if (login) user.login = login;
-  if (teamName) user.teamName = teamName;
-  if (role && (role === 'user' || role === 'admin')) user.role = role;
-  if (password) {
-    user.passwordHash = await hashPassword(password);
-  }
+    // Prepare updates
+    const updates: any = {};
+    if (login) updates.login = login;
+    if (teamName) updates.teamName = teamName;
+    if (role && (role === 'user' || role === 'admin')) updates.role = role;
+    if (password) {
+      updates.passwordHash = await hashPassword(password);
+    }
 
-  return res.json({ 
-    message: 'User updated',
-    user: {
-      id: user.id,
-      login: user.login,
-      teamName: user.teamName,
-      role: user.role,
-    },
-  });
+    // Use updateUser method (throws error if userId === '1')
+    const updatedUser = dataStore.updateUser(userId, updates);
+    
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ 
+      message: 'User updated',
+      user: {
+        id: updatedUser.id,
+        login: updatedUser.login,
+        teamName: updatedUser.teamName,
+        role: updatedUser.role,
+      },
+    });
+  } catch (err: any) {
+    if (err.message && err.message.includes('Cannot modify default admin')) {
+      return res.status(403).json({ error: err.message });
+    }
+    console.error('[PUT /admin/users/:userId] Error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // ============================================================================
@@ -65,29 +81,27 @@ router.put('/users/:userId', async (req: Request, res: Response) => {
 router.delete('/users/:userId', (req: Request, res: Response) => {
   const { userId } = req.params;
 
-  const user = dataStore.getUser(userId);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  // Prevent deleting yourself
-  if (userId === req.session.userId) {
-    return res.status(400).json({ error: 'Cannot delete yourself' });
-  }
-
-  // Delete user's team
-  const teams = dataStore.getTeamsMap();
-  for (const [teamId, team] of teams) {
-    if (team.ownerId === userId) {
-      teams.delete(teamId);
+  try {
+    const user = dataStore.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
+
+    // Use deleteUser method (throws error if userId === '1')
+    const deleted = dataStore.deleteUser(userId);
+    
+    if (!deleted) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ message: 'User deleted successfully' });
+  } catch (err: any) {
+    if (err.message && err.message.includes('Cannot delete default admin')) {
+      return res.status(403).json({ error: err.message });
+    }
+    console.error('[DELETE /admin/users/:userId] Error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-
-  // Delete user (note: DataStore doesn't expose direct delete, would need to add method)
-  // For now, we'll mark this as a limitation
-  // TODO: Add deleteUser method to DataStore
-
-  return res.json({ message: 'User deleted' });
 });
 
 export { router as adminRouter };

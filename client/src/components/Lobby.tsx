@@ -12,28 +12,40 @@ interface Props {
   roomId: string;
   userId: string;
   userLogin: string;
+  userRole: 'user' | 'admin';
   onStartDraft: () => void;
   onExit: () => void;
 }
 
-export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props) {
+export function Lobby({ roomId, userId, userLogin, userRole, onStartDraft, onExit }: Props) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [myReady, setMyReady] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminId, setAdminId] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [draftStarting, setDraftStarting] = useState(false);
+  const [myDraftPosition, setMyDraftPosition] = useState<number | null>(null);
+  const [totalParticipants, setTotalParticipants] = useState<number>(0);
+  const [pickOrder, setPickOrder] = useState<string[]>([]);
+  const [assignedRoomId, setAssignedRoomId] = useState<string>(roomId);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     console.log('[Lobby] Initializing socket...', { roomId, userId, userLogin });
-    const socket = io('http://localhost:3001', { withCredentials: true });
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+    const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
 
     socket.on('connect', () => {
       console.log('[Lobby] Socket connected!');
       console.log('[Lobby] Emitting lobby:join', { roomId, userId, login: userLogin });
       socket.emit('lobby:join', { roomId, userId, login: userLogin });
+    });
+
+    socket.on('lobby:roomAssigned', ({ roomId: activeRoomId }: { roomId: string }) => {
+      console.log('[Lobby] Assigned to active lobby room:', activeRoomId);
+      setAssignedRoomId(activeRoomId);
     });
 
     socket.on('connect_error', (err) => {
@@ -72,16 +84,27 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
       onExit();
     });
 
-    socket.on('draft:starting', ({ countdown: serverCountdown }) => {
+    socket.on('draft:starting', ({ countdown: serverCountdown, pickOrder: draftOrder, message }) => {
+      console.log('[Lobby] Draft starting!', { countdown: serverCountdown, pickOrder: draftOrder, message });
+      setDraftStarting(true);
       setCountdown(serverCountdown);
+      setPickOrder(draftOrder || []);
+      
       let remaining = serverCountdown;
       const interval = setInterval(() => {
         remaining -= 1;
         setCountdown(remaining);
         if (remaining <= 0) {
           clearInterval(interval);
+          setDraftStarting(false);
         }
       }, 1000);
+    });
+
+    socket.on('draft:yourPosition', ({ position, totalParticipants: total, message }) => {
+      console.log('[Lobby] Your draft position:', { position, total, message });
+      setMyDraftPosition(position);
+      setTotalParticipants(total);
     });
 
     return () => {
@@ -92,20 +115,31 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
   const toggleReady = () => {
     const newReady = !myReady;
     setMyReady(newReady);
-    socketRef.current?.emit('lobby:ready', { roomId, userId, ready: newReady });
+    const rid = assignedRoomId || roomId;
+    socketRef.current?.emit('lobby:ready', { roomId: rid, userId, ready: newReady });
   };
 
   const addBots = (count: number) => {
-    socketRef.current?.emit('lobby:addBots', { roomId, count });
+    const rid = assignedRoomId || roomId;
+    socketRef.current?.emit('lobby:addBots', { roomId: rid, count });
+  };
+
+  const removeAllBots = () => {
+    const bots = participants.filter(p => p.userId.startsWith('bot-'));
+    bots.forEach(b => {
+      const rid = assignedRoomId || roomId;
+      socketRef.current?.emit('lobby:kick', { roomId: rid, userId: b.userId });
+    });
   };
 
   const kickUser = (targetUserId: string) => {
-    socketRef.current?.emit('lobby:kick', { roomId, userId: targetUserId });
+    const rid = assignedRoomId || roomId;
+    socketRef.current?.emit('lobby:kick', { roomId: rid, userId: targetUserId });
   };
 
   const startDraft = () => {
-    const pickOrder = participants.map(p => p.userId);
-    socketRef.current?.emit('lobby:start', { roomId, pickOrder });
+    const rid = assignedRoomId || roomId;
+    socketRef.current?.emit('lobby:start', { roomId: rid });
   };
 
   const allReady = participants.length > 0 && participants.every(p => p.ready);
@@ -139,9 +173,6 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
         </div>
 
         <div className="card" style={{ padding: '16px', marginBottom: '24px', fontSize: '14px' }}>
-          <div style={{ marginBottom: '8px', color: '#ffffff' }}>
-            <strong>🎮 Код комнаты:</strong> <span style={{ color: '#60a5fa' }}>{roomId}</span>
-          </div>
           <div style={{ color: '#ffffff' }}>
             <strong>👥 Участников:</strong> <span data-testid="participants-count">{participants.length}</span>
             {allReady && <span style={{ marginLeft: '8px', color: '#10b981', fontWeight: 'bold' }}>✓ Все готовы</span>}
@@ -200,7 +231,7 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
                   }}>
                     {p.ready ? '✓ Готов' : 'Не готов'}
                   </div>
-                  {isAdmin && p.userId !== adminId && !p.userId.startsWith('bot-') && (
+                  {isAdmin && p.userId !== adminId && (
                     <button
                       onClick={() => kickUser(p.userId)}
                       className="btn btn-secondary"
@@ -215,23 +246,150 @@ export function Lobby({ roomId, userId, userLogin, onStartDraft, onExit }: Props
           )}
         </div>
 
+        {/* Countdown Section */}
+        {draftStarting && countdown !== null && (
+          <div style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            padding: '24px',
+            borderRadius: '12px',
+            textAlign: 'center',
+            marginBottom: '20px',
+            border: '2px solid #4f46e5',
+            boxShadow: '0 8px 32px rgba(79, 70, 229, 0.3)'
+          }}>
+            <div style={{ fontSize: '48px', fontWeight: 'bold', color: 'white', marginBottom: '12px' }}>
+              {countdown}
+            </div>
+            <div style={{ fontSize: '18px', color: '#e2e8f0', marginBottom: '16px' }}>
+              🚀 Драфт начинается!
+            </div>
+            {myDraftPosition && (
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                fontSize: '16px',
+                color: 'white',
+                fontWeight: '600'
+              }}>
+                📋 Вы будете выбирать {myDraftPosition}-м из {totalParticipants}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Draft Position Info (when not starting) */}
+        {!draftStarting && myDraftPosition && (
+          <div style={{
+            background: '#f8fafc',
+            border: '2px solid #e2e8f0',
+            padding: '16px',
+            borderRadius: '8px',
+            textAlign: 'center',
+            marginBottom: '16px'
+          }}>
+            <div style={{ fontSize: '16px', color: '#475569', fontWeight: '600' }}>
+              🎯 Ваша позиция в драфте: <strong>{myDraftPosition} из {totalParticipants}</strong>
+            </div>
+          </div>
+        )}
+
+        {/* Snake Draft Order Visualization */}
+        {pickOrder.length > 0 && (
+          <div style={{
+            background: '#ffffff',
+            border: '2px solid #e5e7eb',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '20px'
+          }}>
+            <div style={{ 
+              fontSize: '18px', 
+              fontWeight: 'bold', 
+              color: '#374151', 
+              marginBottom: '16px',
+              textAlign: 'center'
+            }}>
+              🐍 Snake Draft Order
+            </div>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', 
+              gap: '8px',
+              maxWidth: '600px',
+              margin: '0 auto'
+            }}>
+              {pickOrder.map((participantId, index) => {
+                const participant = participants.find(p => p.userId === participantId);
+                const isCurrentUser = participantId === userId;
+                const position = index + 1;
+                
+                return (
+                  <div
+                    key={`${participantId}-${index}`}
+                    style={{
+                      background: isCurrentUser ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)' : '#f3f4f6',
+                      color: isCurrentUser ? 'white' : '#374151',
+                      padding: '12px 8px',
+                      borderRadius: '8px',
+                      textAlign: 'center',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      border: isCurrentUser ? '2px solid #1e40af' : '1px solid #d1d5db',
+                      boxShadow: isCurrentUser ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none'
+                    }}
+                    title={participant?.login || participantId}
+                  >
+                    <div style={{ fontSize: '16px', marginBottom: '4px' }}>
+                      {position}
+                    </div>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      opacity: 0.8,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {participant?.userId.startsWith('bot-') && '🤖'}
+                      {participant?.login?.slice(0, 8) || 'Unknown'}
+                      {isCurrentUser && ' (You)'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{
+              marginTop: '12px',
+              fontSize: '13px',
+              color: '#6b7280',
+              textAlign: 'center'
+            }}>
+              🔄 Порядок змейкой: 1→2→3→4, затем 4→3→2→1, и так далее
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'flex', gap: '12px' }}>
             {!isAdmin && (
-              <button onClick={toggleReady} className="btn btn-primary" style={{ flex: 1 }}>
+              <button onClick={toggleReady} className="btn btn-primary" style={{ flex: 1 }} disabled={draftStarting}>
                 {myReady ? '✓ Готов' : 'Отметить готовность'}
               </button>
             )}
 
             {isAdmin && (
-              <button data-testid="start-draft-btn" onClick={startDraft} disabled={!canStart} className="btn btn-primary" style={{ flex: 1 }}>
-                {canStart ? '🏒 Начать драфт' : `Нужно минимум 2 участника (${participants.length}/2)`}
+              <button data-testid="start-draft-btn" onClick={startDraft} disabled={!canStart || draftStarting} className="btn btn-primary" style={{ flex: 1 }}>
+                {draftStarting ? '⏳ Драфт начинается...' : canStart ? '🏒 Начать драфт' : `Нужно минимум 2 участника (${participants.length}/2)`}
               </button>
             )}
           </div>
 
           {isAdmin && (
-            <button data-testid="add-bots-btn" onClick={() => addBots(3)} className="btn btn-secondary">🤖 Добавить 3 ботов (для тестирования)</button>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button data-testid="add-1-bot-btn" onClick={() => addBots(1)} className="btn btn-secondary">🤖 Добавить 1 бота</button>
+              <button data-testid="add-bots-btn" onClick={() => addBots(3)} className="btn btn-secondary">🤖 Добавить 3 бота</button>
+              <button data-testid="remove-all-bots-btn" onClick={removeAllBots} className="btn btn-danger">🧹 Удалить всех ботов</button>
+            </div>
           )}
         </div>
 

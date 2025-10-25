@@ -2,8 +2,32 @@
   "name": "fantasy-draft-root",
   "private": true,
   "scripts": {
+    "dev:all": "node scripts/orchestrator.js dev",
+    "dev:all:force": "node scripts/orchestrator.js dev --force",
+    "prod:all": "node scripts/orchestrator.js prod",
+    "e2e:serve": "node scripts/orchestrator.js e2e",
+    "e2e:serve:force": "node scripts/orchestrator.js e2e --force",
+    "svc:stop": "node scripts/orchestrator.js stop",
+    "svc:restart": "node scripts/orchestrator.js stop && node scripts/orchestrator.js dev",
+    "svc:status": "node scripts/orchestrator.js status",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "pm2:setup": "node scripts/setup-pm2.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop ecosystem.config.js",
+    "pm2:restart": "pm2 restart ecosystem.config.js",
+    "pm2:delete": "pm2 delete ecosystem.config.js",
+    "pm2:status": "pm2 status",
+    "pm2:logs": "pm2 logs",
+    "pm2:logs:error": "pm2 logs --err",
+    "pm2:monitor": "pm2 monit",
+    "pm2:prod": "npm run build:all && pm2 start ecosystem.prod.config.js",
+    "pm2:prod:stop": "pm2 stop ecosystem.prod.config.js",
+    "build:all": "cd server && npm run build && cd ../client && npm run build",
+    "monitor:start": "node scripts/monitor.js start dev",
+    "monitor:prod": "node scripts/monitor.js start prod",
+    "monitor:stop": "node scripts/monitor.js stop",
+    "monitor:status": "node scripts/monitor.js status"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1"

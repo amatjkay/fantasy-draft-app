@@ -104,6 +104,51 @@ class DataStore {
     return user;
   }
 
+  createUserWithId(id: string, login: string, passwordHash: string, teamName: string, logo: string, role: 'user' | 'admin' = 'user'): User {
+    const user: User = {
+      id,
+      login,
+      passwordHash,
+      teamName,
+      logo,
+      role,
+      createdAt: Date.now(),
+    };
+    
+    this.users.set(user.id, user);
+    return user;
+  }
+
+  updateUser(userId: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>): User | null {
+    // Protect admin with id=1 from modification
+    if (userId === '1') {
+      throw new Error('Cannot modify default admin user (id=1)');
+    }
+
+    const user = this.users.get(userId);
+    if (!user) {
+      return null;
+    }
+
+    const updatedUser = { ...user, ...updates };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  deleteUser(userId: string): boolean {
+    // Protect admin with id=1 from deletion
+    if (userId === '1') {
+      throw new Error('Cannot delete default admin user (id=1)');
+    }
+
+    const deleted = this.users.delete(userId);
+    if (deleted) {
+      // Also delete user's team
+      this.teams.delete(userId);
+    }
+    return deleted;
+  }
+
   getUser(userId: string): User | undefined {
     return this.users.get(userId);
   }

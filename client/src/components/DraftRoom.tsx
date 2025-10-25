@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useState, useEffect } from 'react';
+import { socketService } from '../services/socketService';
+import { apiService } from '../services/apiService';
 
 interface Player {
   id: string;
@@ -35,10 +36,9 @@ interface Props {
   roomId: string;
   userId: string;
   onExit: () => void;
-  onNavigateToTeam?: () => void;
 }
 
-export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
+export function DraftRoom({ roomId, userId, onExit }: Props) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [myTeam, setMyTeam] = useState<MyTeam>({ picks: [], capSpent: 0, capRemaining: 95500000, slots: [] });
   const [draftState, setDraftState] = useState<DraftState | null>(null);
@@ -46,22 +46,17 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
   const [positionFilter, setPositionFilter] = useState<string>('ALL');
   const [sortBy, setSortBy] = useState<'points' | 'capHit' | 'value'>('value');
   const [notification, setNotification] = useState<string>('');
-  const socketRef = useRef<Socket | null>(null);
   const [reconnectInfo, setReconnectInfo] = useState<{ userId: string; endsAt: number } | null>(null);
   const [reconnectSeconds, setReconnectSeconds] = useState<number>(0);
 
   useEffect(() => {
-    // Connect to server
-    const socket = io('http://localhost:3001', { withCredentials: true });
-    socketRef.current = socket;
+    // Подключаемся к серверу и присоединяемся к комнате
+    socketService.connect(roomId, userId);
+    
+    console.log('[DraftRoom] Socket connected');
+    console.log('[DraftRoom] Joining room:', { roomId, userId });
 
-    socket.on('connect', () => {
-      console.log('[DraftRoom] Socket connected');
-      console.log('[DraftRoom] Joining room:', { roomId, userId });
-      socket.emit('draft:join', { roomId, userId });
-    });
-
-    socket.on('draft:state', (state: DraftState) => {
+    socketService.on('draft:state', (state: DraftState) => {
       console.log('[DraftRoom] Received draft:state:', state);
 
       // Clear reconnect banner when draft resumes
@@ -75,7 +70,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
         console.log('[DraftRoom] Bot turn detected, triggering quick pick in 5s:', state.activeUserId);
         // Tell server to make bot pick in 5 seconds
         setTimeout(() => {
-          socket.emit('bot:quickpick', { roomId, userId: state.activeUserId });
+          socketService.emit('bot:quickpick', { roomId, userId: state.activeUserId });
         }, 5000);
       }
       
@@ -90,24 +85,24 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
       loadMyTeam();
     });
 
-    socket.on('draft:reconnect_wait', (payload: { roomId: string; userId: string; graceMs: number }) => {
+    socketService.on('draft:reconnect_wait', (payload: { roomId: string; userId: string; graceMs: number }) => {
       console.log('[DraftRoom] Received draft:reconnect_wait:', payload);
       const endsAt = Date.now() + (payload.graceMs || 60000);
       setReconnectInfo({ userId: payload.userId, endsAt });
     });
 
-    socket.on('player:reconnected', (payload: { roomId: string; userId: string }) => {
+    socketService.on('player:reconnected', (payload: { roomId: string; userId: string }) => {
       console.log('[DraftRoom] Received player:reconnected:', payload);
       setReconnectInfo(null);
       setReconnectSeconds(0);
     });
 
-    socket.on('draft:timer', (data: { timerRemainingMs: number; activeUserId: string }) => {
+    socketService.on('draft:timer', (data: { timerRemainingMs: number; activeUserId: string }) => {
       console.log('[DraftRoom] Timer tick:', Math.ceil(data.timerRemainingMs / 1000) + 's');
       setDraftState(prev => prev ? { ...prev, timerRemainingMs: data.timerRemainingMs } : prev);
     });
 
-    socket.on('draft:completed', (data: { roomId: string; finalState: any }) => {
+    socketService.on('draft:completed', (data: { roomId: string; finalState: any }) => {
       console.log('[DraftRoom] Draft completed!', data);
       showNotification('🏆 Драфт завершён! Все команды укомплектованы!');
       // Reload final state
@@ -115,7 +110,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
       loadMyTeam();
     });
 
-    socket.on('draft:autopick', async (data: { pick: { userId: string; playerId: string } }) => {
+    socketService.on('draft:autopick', async (data: { pick: { userId: string; playerId: string } }) => {
       console.log('[DraftRoom] Autopick event:', data.pick);
       
       // Reload data first to get updated player info
@@ -128,9 +123,8 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
       
       // Fetch player info from server for accurate notification
       try {
-        const res = await fetch('http://localhost:3001/api/players');
-        const data2 = await res.json();
-        const player = data2.players?.find((p: any) => p.id === playerId);
+        const allPlayers = await apiService.getPlayers();
+        const player = allPlayers?.find((p: any) => p.id === playerId);
         
         if (data.pick.userId === userId) {
           showNotification('⚡ Автопик! Время истекло.');
@@ -150,7 +144,8 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
     loadMyTeam();
 
     return () => {
-      socket.disconnect();
+      // Отключаем все обработчики и соединение при размонтировании компонента
+      socketService.disconnect();
     };
   }, [roomId, userId]);
 
@@ -168,25 +163,25 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
   }, [reconnectInfo]);
 
   const loadPlayers = async () => {
-    const res = await fetch('http://localhost:3001/api/players', { credentials: 'include' });
-    const data = await res.json();
-    setPlayers(data.players || []);
+    const players = await apiService.getPlayers();
+    if (players) {
+      setPlayers(players);
+    }
   };
 
   const loadMyTeam = async () => {
-    const res = await fetch('http://localhost:3001/api/team', { credentials: 'include' });
-    const data = await res.json();
-    console.log('[DraftRoom] loadMyTeam response:', data);
-    if (data.team) {
-      // API now returns picks as full player objects in data.team.picks
-      const picks = data.team.picks || data.players || [];
+    const team = await apiService.getTeam();
+    console.log('[DraftRoom] loadMyTeam response:', team);
+    if (team) {
+      // API now returns picks as full player objects in team.picks
+      const picks = team.picks || team.players || [];
       const capSpent = picks.reduce((sum: number, p: Player) => sum + p.capHit, 0);
       // Prefer server-provided explicit slots with assignments if present
       let slots: { position: string; filled: boolean; player?: Player }[] = [];
-      if (Array.isArray(data.team.slots)) {
+      if (Array.isArray(team.slots)) {
         const byId: Record<string, Player> = {};
         for (const p of picks) byId[p.id] = p;
-        slots = data.team.slots.map((s: { position: string; playerId?: string | null }) => ({
+        slots = team.slots.map((s: { position: string; playerId?: string | null }) => ({
           position: s.position,
           filled: !!s.playerId,
           player: s.playerId ? byId[s.playerId] : undefined,
@@ -214,26 +209,16 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
 
   const makePick = async (playerId: string) => {
     console.log('[DraftRoom] Making pick:', { roomId, playerId, userId });
-    try {
-      const res = await fetch('http://localhost:3001/api/draft/pick', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ roomId, playerId }),
-      });
-      const data = await res.json();
-      console.log('[DraftRoom] Pick response:', { status: res.status, data });
-      if (res.ok) {
-        showNotification('Игрок выбран!');
-        loadPlayers();
-        loadMyTeam();
-      } else {
-        console.error('[DraftRoom] Pick failed:', data);
-        showNotification(`Ошибка: ${data.error}`);
-      }
-    } catch (err) {
-      console.error('[DraftRoom] Pick error:', err);
-      showNotification('Ошибка сети');
+    
+    const result = await apiService.pickPlayer(roomId, playerId);
+    
+    if (result.success) {
+      showNotification('Игрок выбран!');
+      loadPlayers();
+      loadMyTeam();
+    } else {
+      console.error('[DraftRoom] Pick failed:', result.error);
+      showNotification(`Ошибка: ${result.error || 'неизвестная ошибка'}`);
     }
   };
 
@@ -391,204 +376,99 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
           </p>
           <button
             onClick={() => {
-              if (onNavigateToTeam) {
-                onNavigateToTeam();
-              } else {
-                alert('🚧 Навигация не настроена');
-              }
+              alert('🚧 Навигация на страницу команды в разработке');
             }}
             style={{
               padding: '12px 32px',
-              background: 'linear-gradient(135deg, #2196F3, #1976D2)',
+              background: 'linear-gradient(135deg, #1E88E5, #1565C0)',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              fontSize: '16px',
-              fontWeight: '700',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(33, 150, 243, 0.3)',
+              fontWeight: '700',
+              fontSize: '16px',
+              boxShadow: '0 2px 8px rgba(30, 136, 229, 0.3)',
+              transition: 'all 0.2s',
             }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
-            📋 Посмотреть мою команду
+            Перейти к команде
           </button>
         </div>
       )}
 
-      {/* Status Bar */}
-      {!draftState?.completed && (
-      <div style={{
-        background: isMyTurn ? 'linear-gradient(135deg, #4CAF50, #45a049)' : 'linear-gradient(135deg, #555, #333)',
-        color: 'white',
-        padding: '16px 24px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-      }}>
-        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-          {isMyTurn ? '🎯 ВАШ ХОД' : `⏳ Ход: ${draftState?.activeUserId?.slice(0, 8) || '...'}`}
-        </div>
-        <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-          ⏱ {timerSec}s
-        </div>
+      {/* Main Content */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', marginTop: '20px' }}>
+        {/* Left: Player List */}
         <div>
-          Раунд {draftState?.round || 1} • Пик #{draftState?.pickIndex || 0}
-        </div>
-      </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px' }}>
-        {/* Left: Players Table */}
-        <div style={{ background: '#1A1D23', border: '2px solid #334155', borderRadius: '8px', padding: '20px' }}>
-          <h2 style={{ marginTop: 0, color: '#ffffff', fontWeight: '700', fontSize: '20px' }}>Доступные игроки</h2>
-
-          {/* Filters */}
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          <h2 style={{ color: '#fff', fontSize: '20px', marginBottom: '10px' }}>Доступные игроки</h2>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
             <input
               type="text"
               placeholder="Поиск по имени..."
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="input"
-              style={{ 
-                flex: 1, 
-                minWidth: '200px', 
-                padding: '10px', 
-                border: '2px solid #334155', 
-                borderRadius: '6px',
-                background: '#0a3d52',
-                color: '#ffffff',
-                fontSize: '14px',
-                fontWeight: '500'
-              }}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ flex: 1, padding: '8px' }}
             />
-            <select 
-              value={positionFilter} 
-              onChange={e => setPositionFilter(e.target.value)} 
-              className="select"
-              style={{ 
-                padding: '10px', 
-                border: '2px solid #334155', 
-                borderRadius: '6px',
-                background: '#0a3d52',
-                color: '#ffffff',
-                fontSize: '14px',
-                fontWeight: '600'
-              }}
-            >
-              <option value="ALL">Все позиции</option>
+            <select value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)} style={{ padding: '8px' }}>
+              <option value="ALL">Все</option>
               <option value="C">C</option>
               <option value="LW">LW</option>
               <option value="RW">RW</option>
               <option value="D">D</option>
               <option value="G">G</option>
             </select>
-            <select 
-              value={sortBy} 
-              onChange={e => setSortBy(e.target.value as any)} 
-              className="select"
-              style={{ 
-                padding: '10px', 
-                border: '2px solid #334155', 
-                borderRadius: '6px',
-                background: '#0a3d52',
-                color: '#ffffff',
-                fontSize: '14px',
-                fontWeight: '600'
-              }}
-            >
-              <option value="value">Value (Points/$)</option>
-              <option value="points">Очки</option>
-              <option value="capHit">Зарплата</option>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={{ padding: '8px' }}>
+              <option value="value">Value</option>
+              <option value="points">Points</option>
+              <option value="capHit">Cap Hit</option>
             </select>
           </div>
-
-          {/* Table */}
-          <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-            <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ position: 'sticky', top: 0, background: '#0a3d52' }}>
+          <div style={{ height: '60vh', overflowY: 'auto', border: '2px solid #334155', borderRadius: '6px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead style={{ position: 'sticky', top: 0, background: '#072338' }}>
                 <tr>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #334155', color: '#ffffff', fontWeight: '700' }}>Игрок</th>
-                  <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #334155', color: '#ffffff', fontWeight: '700' }}>Поз</th>
-                  <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #334155', color: '#ffffff', fontWeight: '700' }}>Команда</th>
-                  <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #334155', color: '#ffffff', fontWeight: '700' }}>Очки</th>
-                  <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #334155', color: '#ffffff', fontWeight: '700' }}>Зарплата</th>
-                  <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #334155', color: '#ffffff', fontWeight: '700' }}>Value</th>
-                  <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #334155', color: '#ffffff', fontWeight: '700' }}>Действие</th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8' }}>Игрок</th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8' }}>Поз.</th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8' }}>Очки</th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8' }}>Зарплата</th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8' }}>Value</th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8' }}></th>
                 </tr>
               </thead>
               <tbody>
-                {filteredPlayers.slice(0, 100).map(p => {
-                  const value = (p.stats.points / (p.capHit / 1000000)).toFixed(1);
-                  const eligible = (Array.isArray(p.eligiblePositions) && p.eligiblePositions.length ? p.eligiblePositions : [p.position]);
-                  const fitsCapAndSlot = (myTeam.capRemaining >= p.capHit) && myTeam.slots.some(s => eligible.includes(s.position) && !s.filled);
-                  return (
-                    <tr key={p.id} style={{ borderBottom: '1px solid #334155', background: fitsCapAndSlot ? '#0a3d52' : '#1e293b' }}>
-                      <td style={{ padding: '10px', color: '#ffffff', fontWeight: '600', fontSize: '14px' }}>{p.firstName} {p.lastName}</td>
-                      <td style={{ padding: '10px', textAlign: 'center', fontWeight: '700', color: '#60a5fa', fontSize: '14px' }}>{eligible.join('/')}</td>
-                      <td style={{ padding: '10px', textAlign: 'center', color: '#94a3b8', fontWeight: '600' }}>{p.team}</td>
-                      <td style={{ padding: '10px', textAlign: 'right', color: '#10b981', fontWeight: '700', fontSize: '14px' }}>{p.stats.points}</td>
-                      <td style={{ padding: '10px', textAlign: 'right', color: '#ef4444', fontWeight: '600' }}>${(p.capHit / 1000000).toFixed(1)}M</td>
-                      <td style={{ padding: '10px', textAlign: 'right', color: '#60a5fa', fontWeight: '700', fontSize: '14px' }}>{value}</td>
-                      <td style={{ padding: '8px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => makePick(p.id)}
-                          disabled={!isMyTurn || !fitsCapAndSlot || !!draftState?.paused}
-                          style={{
-                            padding: '8px 16px',
-                            background: (isMyTurn && fitsCapAndSlot && !draftState?.paused) ? 'linear-gradient(135deg, #10b981, #059669)' : '#475569',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: (isMyTurn && fitsCapAndSlot && !draftState?.paused) ? 'pointer' : 'not-allowed',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            boxShadow: (isMyTurn && fitsCapAndSlot && !draftState?.paused) ? '0 2px 6px rgba(16, 185, 129, 0.3)' : 'none',
-                          }}
-                        >
-                          Pick
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredPlayers.map((player) => (
+                  <tr key={player.id}>
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid #334155' }}>{player.firstName} {player.lastName}</td>
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid #334155' }}>{player.position}</td>
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid #334155' }}>{player.stats.points}</td>
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid #334155' }}>${player.capHit.toLocaleString()}</td>
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid #334155' }}>{(player.stats.points / (player.capHit / 1000000)).toFixed(2)}</td>
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid #334155' }}>
+                      <button 
+                        disabled={!isMyTurn}
+                        onClick={() => makePick(player.id)}
+                      >
+                        Pick
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
 
         {/* Right: My Team */}
-        <div style={{ background: '#1A1D23', border: '2px solid #334155', borderRadius: '8px', padding: '20px' }}>
-          <h2 style={{ marginTop: 0, color: '#ffffff', fontWeight: '700', fontSize: '20px' }}>Моя команда</h2>
-
-          {/* Cap Info */}
-          <div style={{ background: '#0a3d52', padding: '14px', borderRadius: '6px', marginBottom: '16px', border: '2px solid #334155' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <span style={{ color: '#ffffff', fontWeight: '600', fontSize: '14px' }}>Потрачено:</span>
-              <strong style={{ color: '#ef4444', fontSize: '16px' }}>${(myTeam.capSpent / 1000000).toFixed(1)}M</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#ffffff', fontWeight: '600', fontSize: '14px' }}>Осталось:</span>
-              <strong style={{ color: myTeam.capRemaining < 10000000 ? '#ef4444' : '#10b981', fontSize: '16px' }}>
-                ${(myTeam.capRemaining / 1000000).toFixed(1)}M
-              </strong>
-            </div>
+        <div>
+          <h2 style={{ color: '#fff', fontSize: '20px', marginBottom: '10px' }}>Моя команда</h2>
+          <div style={{ marginBottom: '10px', color: '#fff' }}>
+            Cap: ${myTeam.capSpent.toLocaleString()} / $95,500,000
           </div>
-
-          {/* Roster Slots */}
-          <h3 style={{ fontSize: '16px', marginBottom: '12px', color: '#ffffff', fontWeight: '700' }}>
-            Состав ({myTeam.picks.length}/6)
-          </h3>
-          {(() => {
-            // Map players to slots properly (especially for multiple D positions)
-            const usedPlayerIds = new Set<string>();
-            return myTeam.slots.map((slot, i) => {
-              // For each slot, find a player that matches position and hasn't been used yet
-              const player = myTeam.picks.find(p => 
-                p.position === slot.position && !usedPlayerIds.has(p.id)
-              );
-              if (player) usedPlayerIds.add(player.id);
-              
+          <div style={{ height: '70vh', overflowY: 'auto' }}>
+            {myTeam.slots.map((slot, i) => {
+              const player = slot.player;
               return (
               <div key={i} style={{
                 padding: '12px',
@@ -610,54 +490,7 @@ export function DraftRoom({ roomId, userId, onExit, onNavigateToTeam }: Props) {
                 </div>
               </div>
             );
-          });
-          })()}
-
-          {/* Draft History - All Picks */}
-          <h3 style={{ fontSize: '16px', marginTop: '20px', marginBottom: '12px', color: '#ffffff', fontWeight: '700' }}>
-            История пиков ({draftState?.picks?.length || 0})
-          </h3>
-          <div style={{ maxHeight: '220px', overflowY: 'auto', border: '2px solid #334155', borderRadius: '6px', background: '#1e293b' }}>
-            {draftState?.picks && draftState.picks.length > 0 ? (
-              // Show all picks in reverse order (most recent first)
-              [...draftState.picks].reverse().map((pick, i) => {
-                const player = players.find(p => p.id === pick.playerId);
-                const isMyPick = pick.userId === userId;
-                const isBot = pick.userId.startsWith('bot-');
-                const pickNumber = draftState.picks.length - i;
-                
-                return (
-                  <div key={i} style={{ 
-                    padding: '10px 12px', 
-                    borderBottom: i < draftState.picks.length - 1 ? '1px solid #334155' : 'none', 
-                    fontSize: '13px',
-                    background: isMyPick ? 'linear-gradient(135deg, #064e3b, #065f46)' : (i % 2 === 0 ? '#0a3d52' : '#1e293b'),
-                    borderLeft: isMyPick ? '3px solid #10b981' : 'none'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600' }}>
-                        Пик #{pickNumber}
-                      </span>
-                      <span style={{ fontSize: '11px', color: isMyPick ? '#60a5fa' : (isBot ? '#f59e0b' : '#94a3b8'), fontWeight: '700' }}>
-                        {isMyPick ? 'ВЫ' : (isBot ? '🤖 БОТ' : 'ИГРОК')}
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: '700', color: '#ffffff', fontSize: '14px' }}>
-                      {player ? `${player.firstName} ${player.lastName}` : 'Loading...'}
-                    </div>
-                    {player && (
-                      <div style={{ color: '#60a5fa', fontSize: '12px', fontWeight: '600', marginTop: '2px' }}>
-                        {player.position} • ${(player.capHit / 1000000).toFixed(1)}M • {player.stats.points} pts
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div style={{ padding: '20px', textAlign: 'center', color: '#757575' }}>
-                Пики ещё не сделаны
-              </div>
-            )}
+            })}
           </div>
         </div>
       </div>

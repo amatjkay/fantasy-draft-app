@@ -422,8 +422,200 @@ interface Team {
 
 ---
 
+## 11. Non-Functional Requirements (NFR)
+
+### 11.1 Performance
+
+**Latency targets:**
+- `draft:pick` event обработка: **<200ms** (p95)
+- REST API endpoints: **<100ms** (p95)
+- Socket.IO message roundtrip: **<50ms** (p95)
+- Database queries: **<50ms** (p95)
+
+**Throughput requirements:**
+- **Concurrent users:** 50-100 (MVP), 100-500 (v2.0)
+- **Events per minute:** 500 (50 users × 10 picks/min)
+- **Simultaneous draft rooms:** 10-15 active rooms
+
+### 11.2 Security (Обязательно для v1.0)
+
+**Authentication & Authorization:**
+- ✅ bcrypt password hashing (cost factor 10)
+- ✅ httpOnly session cookies
+- ✅ CORS whitelist для production
+- ✅ RBAC enforcement (admin ≠ force-pick/undo)
+
+**Rate Limiting (v1.0):**
+- **API endpoints:** 100 requests/min per IP
+- **Draft picks:** 20 picks/min per user (защита от spam)
+- **Login attempts:** 5 attempts/15min per IP
+
+**CSRF Protection (v1.0):**
+- ✅ CSRF tokens для всех POST/PUT/DELETE
+- ✅ Token validation через middleware
+- ✅ SameSite cookies
+
+**Input Sanitization (v1.0):**
+- ✅ XSS protection (HTML escape всех user inputs)
+- ✅ SQL injection protection (параметризованные запросы)
+- ✅ Path traversal protection
+
+**Security Headers:**
+- ✅ helmet middleware активен
+- ✅ Content-Security-Policy настроен
+- ✅ X-Frame-Options: DENY
+
+### 11.3 Reliability
+
+**Uptime targets:**
+- **MVP (Internal Testing):** 99.0% (7.2 часа downtime/месяц)
+- **v1.0 (Public Beta):** 99.5% (3.6 часа downtime/месяц)
+- **v2.0 (Production):** 99.9% (43 минуты downtime/месяц)
+
+**Graceful Shutdown:**
+- **Timeout:** 30 секунд для завершения активных драфтов
+- **Behavior:** Новые запросы отклоняются (503), существующие завершаются
+- **Persistence:** Все state сохраняется в SQLite перед shutdown
+
+**Auto-Recovery:**
+- **Server restart:** Восстановление active draft rooms из persistence
+- **Database restore:** <5 минут при corruption
+- **Session recovery:** Redis sessions (v2.0) переживают restart
+
+**Data Integrity:**
+- **Zero data loss:** Все picks персистятся немедленно
+- **Transactional picks:** Salary cap + slot validation atomic
+- **Audit trail:** Полный лог всех picks (для dispute resolution)
+
+### 11.4 Observability
+
+**Structured Logging:**
+- ✅ JSON-формат логов (timestamp, level, module, context)
+- ✅ File output с ротацией (10MB limit, автоматическая архивация)
+- ✅ Separation: `error.log`, `combined.log`
+- ✅ Log levels: debug, info, warn, error
+- ✅ Context enrichment: roomId, userId, playerId в каждом событии
+
+**Health Checks:**
+- ✅ `/health` - Liveness probe (always 200)
+- ✅ `/health/ready` - Readiness (validates DB, session)
+- ✅ `/health/live` - Kubernetes-style liveness
+- ✅ `/health/metrics` - System metrics (CPU, memory)
+
+**Metrics (v1.0):**
+- **Draft metrics:** active rooms, total picks, autopick rate
+- **Performance:** p50/p95/p99 latency для pick operations
+- **Errors:** error rate by type (validation, timeout, etc.)
+- **System:** CPU usage, memory, active connections
+
+**Alerting (v1.0):**
+- **Critical errors:** Immediate notification (email/Slack)
+- **High error rate:** >5% picks fail → alert
+- **Performance degradation:** p95 latency >500ms → alert
+- **System resources:** CPU >80% / Memory >90% → alert
+
+### 11.5 Scalability
+
+**MVP (Current - SQLite + In-Memory):**
+- **Users:** 50-100 concurrent
+- **Bottleneck:** SQLite write lock (single writer)
+- **Deployment:** Single Node.js instance
+
+**v1.0 (Redis Sessions):**
+- **Users:** 50-100 concurrent (unchanged)
+- **Benefit:** Session persistence (survive restart)
+- **Cost:** Minimal (Upstash free tier)
+
+**v2.0 (PostgreSQL + Redis):**
+- **Users:** 100-500 concurrent
+- **Database:** PostgreSQL (connection pool 20)
+- **Sessions:** Redis session store
+- **Deployment:** Single instance (clustering ready)
+
+**v3.0 (Horizontal Scaling):**
+- **Users:** 500+ concurrent
+- **Architecture:** Node.js cluster (4 workers)
+- **Redis:** Socket.IO adapter для pub/sub
+- **Load Balancer:** nginx или cloud LB
+
+### 11.6 User Experience
+
+**Error Messages:**
+- ❌ **НЕТ:** Технические stack traces
+- ✅ **ДА:** User-friendly объяснения + рекомендации
+
+**Примеры:**
+```
+БАД:  "TypeError: Cannot read property 'salary' of undefined"
+ХОРОШО: "Игрок не найден. Обновите список игроков и попробуйте снова."
+
+БАД:  "SALARY_CAP_EXCEEDED"
+ХОРОШО: "Превышен salary cap на $2,500,000. Выберите более дешёвого игрока."
+```
+
+**Loading States:**
+- ✅ Skeleton screens для операций >500ms
+- ✅ Progress indicators для long-running tasks
+- ✅ Optimistic UI updates (pick немедленно отображается)
+
+**Accessibility (WCAG 2.1 Level AA):**
+- ✅ Keyboard navigation для всех действий
+- ✅ ARIA labels для screen readers
+- ✅ Color contrast ratio >4.5:1
+- ✅ Focus indicators видны
+
+### 11.7 Edge Cases и обработка
+
+| Сценарий | Решение | Реализация |
+|----------|---------|------------|
+| **Pick в последнюю секунду, пакет приходит после timeout** | Grace period 2 сек после timeout, затем reject с "Time expired" | `draftTimer.ts` |
+| **2 пользователя пикают одного игрока одновременно** | First-write-wins + error response "Player already picked" | `draft.ts:makePick` |
+| **Admin кикает пользователя во время его пика** | Автопик лучшего доступного игрока + notification kicked user | `lobby.ts:kickUser` |
+| **Server restart во время драфта** | Restore из SQLite persistence, reconnect grace 60 sec | `persistence/restore.ts` |
+| **Потеря WebSocket соединения** | Автоматический reconnect, 60 sec grace period | Socket.IO client |
+| **Salary cap race condition (параллельные пики)** | Transactional validation, lock state во время pick | `draft.ts:makePick` |
+| **Пользователь пытается пикать НЕ в свой ход** | Reject с "Not your turn" + показать текущего активного игрока | `draft.ts:validateTurn` |
+| **Database corruption** | Auto-recovery из backup (v2.0), fallback to in-memory (MVP) | `persistence/sqlite.ts` |
+| **Memory leak в long-running server** | Graceful restart каждые 7 дней (production) | PM2 restart policy |
+
+### 11.8 Acceptance Criteria для Production
+
+**Система готова к public release ТОЛЬКО если:**
+
+**Security (все обязательны):**
+1. ✅ Rate limiting активен и протестирован (429 после лимита)
+2. ✅ CSRF protection работает (403 без токена)
+3. ✅ Input sanitization покрывает 100% user inputs
+4. ✅ Security audit пройден (OWASP Top 10 checklist)
+5. ✅ Penetration testing выполнен
+
+**Observability (все обязательны):**
+6. ✅ Structured logs пишутся в файлы с rotation
+7. ✅ Health checks доступны и протестированы
+8. ✅ Error alerting настроен (email/Slack)
+9. ✅ Monitoring dashboard доступен
+
+**Testing (все обязательны):**
+10. ✅ Все unit/integration/e2e тесты проходят (100%)
+11. ✅ Load testing: 50 concurrent users без деградации
+12. ✅ Stress testing: graceful degradation при 200% нагрузке
+13. ✅ Security testing: rate limiting, CSRF, XSS проверены
+
+**Documentation (все обязательны):**
+14. ✅ API documentation актуальна (Swagger)
+15. ✅ Deployment guide обновлен
+16. ✅ Incident response playbook создан
+17. ✅ User guide завершён
+
+**Performance (все обязательны):**
+18. ✅ p95 latency <200ms для draft:pick
+19. ✅ Zero data loss под нагрузкой
+20. ✅ Graceful shutdown работает корректно
+
+---
+
 **Данный документ является финальной спецификацией бизнес-требований.**  
 **Любые изменения требований должны быть согласованы и задокументированы.**  
 
-**Последнее обновление:** 23.10.2025  
-**Версия:** 2.0
+**Последнее обновление:** 24.10.2025  
+**Версия:** 2.1 (добавлены NFR)

@@ -47,81 +47,90 @@ export function LoginPage({ onLoginSuccess }: Props) {
   };
 
   return (
-    <div className="page page-gradient">
-      <div className="card p-40 w-full max-w-400">
-        <h1 className="heading-xl text-center mb-8">
-          Shadow Hockey Draft
-        </h1>
-        <p className="text-center subtitle mb-24">
-          {isRegistering ? 'Создайте аккаунт' : 'Войдите в систему'}
-        </p>
+    <div className="page-centered animate-fade-in">
+      <div className="card max-w-md w-full animate-slide-up" style={{ maxWidth: '440px' }}>
+        <div className="card-header text-center">
+          <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem', background: 'linear-gradient(135deg, #3b82f6, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            🏒 Fantasy Draft
+          </h1>
+          <p className="card-subtitle" style={{ fontSize: '1rem' }}>
+            {isRegistering ? 'Создайте аккаунт для начала' : 'Войдите в систему'}
+          </p>
+        </div>
 
-        {error && (
-          <div className="alert alert-danger mb-16">{error}</div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-16">
-            <label className="label">
-              Логин
-            </label>
-            <input
-              type="text"
-              value={login}
-              onChange={e => setLogin(e.target.value)}
-              required
-              minLength={3}
-              className="input"
-            />
-          </div>
-
-          <div className="mb-16">
-            <label className="label">
-              Пароль
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="input"
-            />
-          </div>
-
-          {isRegistering && (
-            <div className="mb-16">
-              <label className="label">
-                Название команды (опционально)
-              </label>
-              <input
-                type="text"
-                value={teamName}
-                onChange={e => setTeamName(e.target.value)}
-                placeholder={`${login}'s Team`}
-                className="input"
-              />
+        <div className="card-body">
+          {error && (
+            <div className="alert alert-danger animate-slide-up" style={{ marginBottom: '1.5rem' }}>
+              ⚠️ {error}
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn btn-primary btn-block"
-          >
-            {loading ? 'Загрузка...' : isRegistering ? 'Зарегистрироваться' : 'Войти'}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label className="form-label">Логин</label>
+              <input
+                type="text"
+                className="form-input"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                required
+                disabled={loading}
+                autoComplete="username"
+                placeholder="Введите логин"
+              />
+            </div>
 
-        <div className="text-center mt-16">
+            <div className="form-group">
+              <label className="form-label">Пароль</label>
+              <input
+                type="password"
+                className="form-input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+                autoComplete={isRegistering ? 'new-password' : 'current-password'}
+                placeholder="Введите пароль"
+              />
+            </div>
+
+            {isRegistering && (
+              <div className="form-group">
+                <label className="form-label">Название команды (опционально)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                  disabled={loading}
+                  placeholder={login ? `${login}'s Team` : 'Моя команда'}
+                />
+                <div className="form-help">Оставьте пустым для автоматического названия</div>
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              className="btn btn-primary btn-lg btn-block" 
+              disabled={loading}
+              style={{ marginTop: '1.5rem' }}
+            >
+              {loading ? '⏳ Загрузка...' : isRegistering ? '📝 Зарегистрироваться' : '🔑 Войти'}
+            </button>
+          </form>
+        </div>
+
+        <div className="card-footer text-center">
           <button
+            type="button"
+            className="btn btn-ghost"
             onClick={() => {
               setIsRegistering(!isRegistering);
               setError('');
             }}
-            className="btn-link"
+            disabled={loading}
           >
-            {isRegistering ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
+            {isRegistering ? 'Уже есть аккаунт? Войти →' : 'Нет аккаунта? Зарегистрироваться →'}
           </button>
         </div>
       </div>

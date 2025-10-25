@@ -25,10 +25,10 @@ test('reconnect triggers pause and autopick, then draft resumes', async ({ brows
     await page.goto(baseURL || '/', { waitUntil: 'networkidle' });
     // Switch to registration mode
     await page.getByRole('button', { name: 'Нет аккаунта? Зарегистрироваться' }).click();
-    // Fill login/password/team (inputs not labeled-for, use order)
-    await page.locator('input[type="text"]').first().fill(login);
-    await page.locator('input[type="password"]').fill(password);
-    await page.locator('input[type="text"]').nth(1).fill(team);
+    // Fill login/password/team (use data-testid for stable selectors)
+    await page.getByTestId('register-login-input').fill(login);
+    await page.getByTestId('register-password-input').fill(password);
+    await page.getByTestId('team-name-input').fill(team);
     await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
     await expect(page.getByRole('heading', { name: 'Лобби драфта' })).toBeVisible({ timeout: 10_000 });
   };

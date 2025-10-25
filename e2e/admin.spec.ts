@@ -34,9 +34,9 @@ test.describe('Admin Actions', () => {
 
     await adminPage.goto(`/?roomId=${roomId}`);
     await adminPage.getByRole('button', { name: 'Нет аккаунта? Зарегистрироваться' }).click();
-    await adminPage.locator('input[type="text"]').first().fill(adminLogin);
-    await adminPage.locator('input[type="password"]').fill('password');
-    await adminPage.locator('input[type="text"]').nth(1).fill('Admin Team');
+    await adminPage.getByTestId('register-login-input').fill(adminLogin);
+    await adminPage.getByTestId('register-password-input').fill('password');
+    await adminPage.getByTestId('team-name-input').fill('Admin Team');
     await adminPage.getByRole('button', { name: 'Зарегистрироваться' }).click();
     await adminPage.unroute('**/api/auth/register');
     await expect(adminPage.getByRole('heading', { name: 'Лобби драфта' })).toBeVisible();
@@ -45,9 +45,9 @@ test.describe('Admin Actions', () => {
     // Register second user via UI (with roomId in URL)
     await userPage.goto(`/?roomId=${roomId}`);
     await userPage.getByRole('button', { name: 'Нет аккаунта? Зарегистрироваться' }).click();
-    await userPage.locator('input[type="text"]').first().fill(`user-${rnd}`);
-    await userPage.locator('input[type="password"]').fill('password');
-    await userPage.locator('input[type="text"]').nth(1).fill('User Team');
+    await userPage.getByTestId('register-login-input').fill(`user-${rnd}`);
+    await userPage.getByTestId('register-password-input').fill('password');
+    await userPage.getByTestId('team-name-input').fill('User Team');
     await userPage.getByRole('button', { name: 'Зарегистрироваться' }).click();
     await expect(userPage.getByRole('heading', { name: 'Лобби драфта' })).toBeVisible();
     userId = await userPage.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}').id);

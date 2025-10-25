@@ -68,19 +68,23 @@ export class DraftTimerManager {
           const players = dataStore.getPlayersMap();
           const teams = dataStore.getTeamsMap();
           const newState = room.makeAutoPick(activeUserId, players, teams);
+          
+          // Get the last pick from the updated state
           const lastPick = newState.picks[newState.picks.length - 1];
-
-          // Notify clients
+          const player = players.get(lastPick.playerId);
+          
+          // Emit events
           this.io.to(roomId).emit('draft:state', newState);
           this.io.to(roomId).emit('draft:autopick', {
             roomId,
             pickIndex: newState.pickIndex - 1,
             pick: lastPick,
           });
-
-          // Log and persist
-          const player = players.get(lastPick.playerId);
+          
+          // Log success
           logger.autopick.success(roomId, lastPick.userId, lastPick.playerId, player?.stats?.points || 0);
+          
+          // Save to persistence
           const repo = getDraftRepository();
           const rec: DraftPickRecord = {
             roomId,
@@ -99,10 +103,14 @@ export class DraftTimerManager {
           logger.autopick.failed(roomId, activeUserId, err.message);
           console.error(`[DraftTimerManager] Auto-pick failed for ${activeUserId} in room ${roomId}:`, err.message);
           
-          // Force next turn to prevent getting stuck
-          const newState = room.nextTurn();
-          this.io.to(roomId).emit('draft:state', newState);
-          this.io.to(roomId).emit('draft:error', { message: `Autopick failed for ${activeUserId}: ${err.message}` });
+          // Emit error but DON'T advance turn - user must manually pick or wait for next timer cycle
+          // Advancing turn here would skip the user's pick entirely
+          const currentState = room.getState();
+          this.io.to(roomId).emit('draft:state', currentState);
+          this.io.to(roomId).emit('draft:error', { 
+            message: `Автопик не удался для ${activeUserId}. Пожалуйста, выберите игрока вручную.`,
+            code: 'AUTOPICK_FAILED'
+          });
         }
       }
     });

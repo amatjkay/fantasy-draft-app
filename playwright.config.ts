@@ -14,15 +14,21 @@ export default defineConfig({
       command: 'npm run dev',
       cwd: 'server',
       port: 3001,
-      env: { RECONNECT_GRACE_MS: '1000' },
-      reuseExistingServer: false,
+      env: { 
+        RECONNECT_GRACE_MS: '1000',
+        SKIP_SECURITY: '1', // Disable CSRF and rate limiting for E2E tests
+      },
+      reuseExistingServer: false, // Clean server for each test run
       timeout: 120_000,
     },
     {
       command: 'npm run dev',
       cwd: 'client',
       port: 5173,
-      reuseExistingServer: false,
+      env: {
+        VITE_E2E_TEST: '1',
+      },
+      reuseExistingServer: false, // Clean client for each test run
       timeout: 120_000,
     },
   ],

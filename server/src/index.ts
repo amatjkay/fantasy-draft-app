@@ -17,9 +17,14 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 
 const httpServer = createServer(app);
 
+const allowedSocketOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const io = new IOServer(httpServer, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: allowedSocketOrigins,
     credentials: true,
   },
 });
@@ -305,24 +310,32 @@ io.on('connection', (socket: Socket) => {
   // Lobby events
   // ============================================================================
 
-  socket.on('lobby:join', (data: { roomId: string; userId: string; login: string }) => {
-    const { roomId, userId, login } = data;
-    if (!roomId || !userId) return;
-
-    socket.join(`lobby:${roomId}`);
+  socket.on('lobby:join', (data: { roomId?: string; userId: string; login: string }) => {
+    const { userId, login } = data;
+    console.log('[Socket lobby:join] Received:', { userId, login });
+    
+    // Always use the single active room
+    const activeRoomId = 'main-draft-room';
+    console.log('[Socket lobby:join] Automatically joining active room:', activeRoomId);
     
     const user = dataStore.getUser(userId);
     const teamName = user?.teamName || `${login}'s Team`;
     
-    const lobby = lobbyManager.createOrGetLobby(roomId, userId);
-    lobbyManager.addParticipant(roomId, userId, login, teamName, socket.id);
-    userSocketMap.set(socket.id, { userId, roomId }); // Track user socket
+    const lobby = lobbyManager.createOrGetLobby(activeRoomId, userId);
+    lobbyManager.addParticipant(activeRoomId, userId, login, teamName, socket.id);
+    userSocketMap.set(socket.id, { userId, roomId: activeRoomId }); // Track user socket
     
-    const participants = lobbyManager.getParticipantsList(roomId);
-    io.to(`lobby:${roomId}`).emit('lobby:participants', {
+    const participants = lobbyManager.getParticipantsList(activeRoomId);
+    io.to(`lobby:${activeRoomId}`).emit('lobby:participants', {
       participants,
       adminId: lobby.adminId,
     });
+
+    socket.join(`lobby:${activeRoomId}`);
+    console.log(`[Socket lobby:join] User ${login} (${userId}) joined active lobby room ${activeRoomId}`);
+    
+    // Emit the active room ID back to client
+    socket.emit('lobby:roomAssigned', { roomId: activeRoomId });
   });
 
   socket.on('lobby:ready', (data: { roomId: string; userId: string; ready: boolean }) => {
@@ -335,8 +348,16 @@ io.on('connection', (socket: Socket) => {
     const { roomId, count } = data;
     console.log('[Socket lobby:addBots] Received:', { roomId, count });
     const sessUserId = (socket.request as any)?.session?.userId as string | undefined;
+    
+    // Check if user has admin role
+    const user = sessUserId ? dataStore.getUser(sessUserId) : null;
+    if (!user || user.role !== 'admin') {
+      socket.emit('lobby:error', { message: 'Only admins can add bots' });
+      return;
+    }
+    
     if (!isLobbyAdminOrGlobal(roomId, sessUserId)) {
-      socket.emit('lobby:error', { message: 'Only admin can add bots' });
+      socket.emit('lobby:error', { message: 'Only lobby admin can add bots' });
       return;
     }
     lobbyManager.addBots(roomId, Math.min(count, 9), dataStore); // Max 9 bots
@@ -350,27 +371,54 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  socket.on('lobby:start', (data: { roomId: string; pickOrder: string[] }) => {
-    const { roomId, pickOrder } = data;
+  socket.on('lobby:start', (data: { roomId?: string }) => {
+    const activeRoomId = 'main-draft-room'; // Always use active room
+    console.log(`[lobby:start] Starting draft for active room: ${activeRoomId}`);
 
-    // Shuffle the pick order for randomness (Fisher-Yates shuffle)
+    const lobby = lobbyManager.getLobby(activeRoomId);
+    if (!lobby) {
+      socket.emit('lobby:error', { message: 'Active lobby not found' });
+      return;
+    }
+
+    // Get all participants and generate random snake order
+    const participants = lobbyManager.getParticipantsList(activeRoomId);
+    const participantIds = participants.map(p => p.userId);
+    
+    // Fisher-Yates shuffle for randomness
+    const pickOrder = [...participantIds];
     for (let i = pickOrder.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [pickOrder[i], pickOrder[j]] = [pickOrder[j], pickOrder[i]];
     }
-    console.log(`[lobby:start] Shuffled pick order for room ${roomId}:`, pickOrder);
+    console.log(`[lobby:start] Generated random pick order:`, pickOrder);
 
-    const lobby = lobbyManager.getLobby(roomId);
-    if (!lobby) return;
     const sessUserId = (socket.request as any)?.session?.userId as string | undefined;
-    if (!isLobbyAdminOrGlobal(roomId, sessUserId)) {
+    if (!isLobbyAdminOrGlobal(activeRoomId, sessUserId)) {
       socket.emit('lobby:error', { message: 'Only admin can start the draft' });
       return;
     }
 
-    // Announce that draft is starting soon
+    // Send each participant their position in the draft order
+    participants.forEach((participant, index) => {
+      const position = index + 1;
+      const participantSocket = io.sockets.sockets.get(participant.socketId!);
+      if (participantSocket) {
+        participantSocket.emit('draft:yourPosition', { 
+          position, 
+          totalParticipants: participants.length,
+          message: `Вы будете выбирать ${position}-м из ${participants.length}` 
+        });
+      }
+    });
+
+    // Announce that draft is starting soon with countdown
     const countdownSeconds = 10;
-    io.to(`lobby:${roomId}`).emit('draft:starting', { countdown: countdownSeconds });
+    io.to(`lobby:${activeRoomId}`).emit('draft:starting', { 
+      countdown: countdownSeconds,
+      pickOrder,
+      message: 'Драфт начинается! Порядок выбора определён случайно.'
+    });
 
     // Wait for countdown before starting
     setTimeout(() => {
@@ -391,7 +439,7 @@ io.on('connection', (socket: Socket) => {
       // Create draft room
       const timerSec = 60;
       const room = draftManager.getOrCreate({
-        roomId,
+        roomId: activeRoomId,
         pickOrder,
         timerSec,
         snakeDraft: true,
@@ -401,7 +449,7 @@ io.on('connection', (socket: Socket) => {
       try {
         const repo = getDraftRepository();
         const roomRecord: DraftRoomRecord = {
-          roomId,
+          roomId: activeRoomId,
           timerSec,
           snakeDraft: true,
           createdAt: Date.now(),
@@ -414,28 +462,28 @@ io.on('connection', (socket: Socket) => {
 
       room.start();
       const newState = room.getState();
-      logger.draft.started(roomId, pickOrder, timerSec);
+      logger.draft.started(activeRoomId, pickOrder, timerSec);
       
       // Notify lobby participants that the draft has officially started
-      io.to(`lobby:${roomId}`).emit('lobby:start');
+      io.to(`lobby:${activeRoomId}`).emit('lobby:start');
 
       // Emit initial state to the draft room
-      io.to(roomId).emit('draft:state', newState);
+      io.to(activeRoomId).emit('draft:state', newState);
 
       // The global timerManager will pick up the new active turn
       // Check if first turn is a bot
       if (newState.activeUserId?.startsWith('bot-')) {
         setTimeout(() => {
-          makeBotPick(roomId, newState.activeUserId!);
+          makeBotPick(activeRoomId, newState.activeUserId!);
         }, 2000);
       }
 
       // Finally, clear the lobby
-      lobbyManager.clearLobby(roomId);
+      lobbyManager.clearLobby(activeRoomId);
     }, countdownSeconds * 1000);
     
     // Clear lobby
-    lobbyManager.clearLobby(roomId);
+    lobbyManager.clearLobby(activeRoomId);
   });
 
   // Kick participant (admin only)
